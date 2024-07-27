@@ -53,6 +53,6 @@ other_arr = np.linspace(1, 5, 10)
 sorted_other_arr = other_arr[permutation]
 
 # Invert the permutation to restore the original order
-inverted_permutation = np.argsort(permutation)
+inverted_permutation = np.arange(len(permutation))[np.argsort(permutation)]
 restored_lst = sorted_lst[inverted_permutation]
 restored_other_arr = sorted_other_arr[inverted_permutation]

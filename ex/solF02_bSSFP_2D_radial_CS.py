@@ -53,7 +53,7 @@ gy = pp.make_trapezoid(channel='y', flat_area=Nread, flat_time=5e-3, system=syst
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
 gy_pre = pp.make_trapezoid(channel='y', area=-gx.area / 2, duration=1e-3, system=system)
 
-adc = pp.make_adc(num_samples=Nread, duration=5e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
+adc = pp.make_adc(num_samples=Nread*2, duration=5e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
 
 rf_phase = 180
 rf_inc = 180
@@ -158,7 +158,7 @@ signal = mr0.execute_graph(graph, seq0, obj_p)
 plt.close(11);plt.close(12)
 sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
 
-kspace_adc = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace_adc = torch.reshape((signal), (Nphase, adc.num_samples)).clone().t()
 
 # %% S6:. NUFFT reconstruction with density compensation
 # Zhengguo Tan <zhengguo.tan@gmail.com>
@@ -168,7 +168,7 @@ print('> NUFFT recon with density compensation function')
 import torchkbnufft as tkbn
 
 # traj
-traj = torch.reshape(kspace_loc, (Nphase, Nread, kspace_loc.shape[-1]))
+traj = torch.reshape(kspace_loc, (Nphase, adc.num_samples, kspace_loc.shape[-1]))
 traj = traj[..., :2]
 
 traj = traj/Nread * np.pi * 2
@@ -237,7 +237,7 @@ def prox_wav(input, lamda):
 
     return torch.tensor(output)
 
-
+# power method (FISTA)
 # compute maximal eigenvalue:
 x = torch.randn(size=recon_nufft.shape, dtype=recon_nufft.dtype)
 for n in range(30):

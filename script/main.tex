@@ -5,6 +5,7 @@
 
 \begin{document}
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
+\definecolor{mygelb}{rgb}{1, 1, 0.8}
 
 \graphicspath{ {./img/} }
 \begin{titlepage}
@@ -36,7 +37,9 @@
 %	Information	
 % =================
 	{\large Designed by: M. Zaiss '19 \\
-	Updated '23 \\
+	Updated 02/2024 \\
+ \vspace*{1.2\baselineskip}
+ Simulation by J.Endres\\
 		\vspace*{1.2\baselineskip}
 	moritz.zaiss@fau.de} \\
 	\vfill
@@ -47,12 +50,12 @@ If you come across any problems, contact me: \url{moritz.zaiss@fau.de}\\ \vspace
 \vfill
 
 \subsection*{Foreword}
-This practical course is a hands-on course. Thus, the theory is more in the background, instead, you have the opportunity to make your experiences with the spins and the scanner yourself. When a lecture is like being told a story of a beautiful landscape, this practical course is a guided tour to discover this landscape on your own. The tools used here are research tools. Once you reached the end of the described paths, you can boldly go where no one has gone before.
+This practical course is a hands-on course. Thus, the theory is more in the background, instead, you have the opportunity to make your experiences with the spins and the scanner yourself. When a lecture is like being told a story of a beautiful landscape, this practical course is a guided tour to discover this landscape on your own. The tools used here are research tools. Once you reach the end of the described paths, you can boldly go where no one has gone before.
 \\
 \\
 \small{\noindent \textbf{About This File} \vspace{-3mm}\\
 \noindent \rule{3.3cm}{0.5pt} \\
- MRTwin is a framework created by the research group M.Zaiss. Pulseq is an open file format created by Maxim Zaitsev (https://github.com/pulseq/pulseq). 
+ MRTwin is a framework created by the research group of M.Zaiss based on Pulseq and a fast MRI simulation. Pulseq is an open file format created by Maxim Zaitsev (https://github.com/pulseq/pulseq), used herein via the python version PyPulseq (https://github.com/imr-framework/pypulseq). The currently used simulation is described here https://github.com/MRsources/MRzero-Core. 
 The Latex file was created using Overleaf, based on the free template of Armin Dubert (armindubert2019@gmail.com).}
 \newpage
 \newgeometry{
@@ -81,6 +84,8 @@ The Latex file was created using Overleaf, based on the free template of Armin D
 \item http://www.mritoolbox.com/ParameterDatabase.html
 \item https://www.imaios.com/en/e-Courses/e-MRI/
 \item http://mrsrl.stanford.edu/~brian/bloch/
+
+\item https://github.com/markus-nilsson/mri-simulator
 \end{itemize}
 
 
@@ -188,6 +193,7 @@ This can be expressed mathematically in the following way:
 
 Coming back to equation \eqref{eq:2} this leads now to an important simplification when transforming to the rotating frame. First of all the effect of $B_0$ can be removed, as it is already considered. Secondly, we can now bring the radiofrequency field B1 in resonance with the Larmor precession, namley $\omega_{rf} = \omega_0$, which means that also the rf field is static in this rotating frame. This simplifies the effective magnetic fields in the rotating frame to
  \begin{equation} 
+ \label{eq:B_BG_B1}
  \vec{B}(\vec{r},t)  =  \vec{B_G}(\vec{x}',t) + \vec{B_1} = 
   \begin{pmatrix}
   & 0 \\
@@ -204,6 +210,7 @@ Coming back to equation \eqref{eq:2} this leads now to an important simplificati
  
  Including also transverse relaxation (which is only decay of transverse magnetization) and longitudinal relaxation (which includes a recovery to the thermal magnetization M0) we obtain the full Bloch equation system:
 \begin{equation} 
+\label{eq:fullBloch}
 \frac{d}{dt}\left( \begin{array}{c} M'_x\\ M'_y\\ M'_z \end{array} \right) 
 =
 \left( \begin{array}{ccc}
@@ -216,8 +223,43 @@ Coming back to equation \eqref{eq:2} this leads now to an important simplificati
 \left( \begin{array}{c} 0\\ 0\\ \frac{M_0}{T_1} \end{array} \right)
  \end{equation},where $\Delta\omega = \omega_0-\omega_{rf} + \vec{G}(t)\cdot\vec{r} $, and $\omega_1=\gamma B_1$. 
 Thus by controlling the external fields $\vec{G}(t)$ and $\vec {B_1}(t)$ we can, according to equation \eqref{eq:Bloch1}, control the dynamics of the magnetization in each point $(\vec{x},t)$.  In the rotating frame, the driven dynamics are always rotations, the free dynamics are exponential decays.\\
-Convince yourself by manipulating a magnetization vector on \href{http://www.drcmr.dk/BlochSimulator/}{www.drcmr.dk/BlochSimulator}\\
-For example, for $B_1$ only, you can convince yourself, following the $B_0$ case, that this yields a precession of $\vec{M}$ around the vector $\vec{B_1}$ with the frequency $\omega_1=\gamma B_1$ for the time the rf pulse is switched on $t_p$. For this reason it is simpler to use the angle of this rotation, for constant $B_1$ this would be $\alpha=\omega_1\cdot t_p$. For varying pulses $\mathbf{\alpha=\int{\omega_1(t)dt}}$, and the rf phase is defined by the angle of $\vec{\omega_1}$ in the x-y plane; in the equation above $\vec{\omega_1}$ is in x-direction. An RF event can therefore be defined by the tuple  
+Convince yourself by manipulating a magnetization vector on \href{http://www.drcmr.dk/BlochSimulator/}{www.drcmr.dk/BlochSimulator}.\\
+For example, for $B_1$ only, you can convince yourself, following the $B_0$ case, that this yields a precession of $\vec{M}$ around the vector $\vec{B_1}$ with the frequency $\omega_1=\gamma B_1$ for the time the rf pulse is switched on $t_p$. For this reason it is simpler to use the angle of this rotation, for constant $B_1$ this would be
+\begin{equation} 
+\alpha=\omega_1\cdot t_p.
+\end{equation}
+For varying pulses the product becomes an integral
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+ 
+\begin{equation} 
+\mathbf{\alpha=\int{\omega_1(t)dt}}.
+\end{equation}
+
+
+    \end{minipage}
+}
+The rf phase $\phi_{rf}$ is defined by the angle of $\vec{\omega_1}$ in the x-y plane; in  equations \eqref{eq:B_BG_B1} and \eqref{eq:fullBloch} above the vector $\vec{\omega_1}$ is in x-direction. In general $\vec{\omega_1}$ can point in any direction in the x-y-plane:
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+ 
+ \begin{equation} 
+ \vec{\omega_1} =
+ \begin{pmatrix}
+  & \omega_1\cdot \cos(\phi_{rf}) \\
+& \omega_1\cdot \sin(\phi_{rf}) \\
+& 0 &  & \\
+\end{pmatrix}
+ \end{equation}
+     \end{minipage}
+}
+An RF event can therefore be defined by the tuple  
  
 \begin{itemize}
 \item \textbf{rf event}: ( rf flip angle, rf phase, rf frequency, rf usage)= $(\alpha, \phi_{rf}, \Delta\omega_{rf}, \text{usage})$
@@ -227,17 +269,42 @@ The RF field is generated by an radiofrequency transmit coil and only has x and 
 \\
 \newline
 
-For only gradients, you can convince yourself, that depending on the spin position within the gradient field, also just a rotation with the frequency $\omega_G(\vec{r}) = \gamma\vec{G}(t)\cdot\vec{r}$ around the z-axis occurs. The actual rotation angle depends here on the spatial position. Still, not the gradient, but the gradients area, or the gradient moment $\mathbf{\vec{g}=\int \vec{G(t)}\cdot\vec{r}dt}$ of a finite gradient event defines this rotation by $\gamma \vec{g}\cdot \vec{r}$. Thus a gradient moment event has three degrees of freedom:
+For only gradients, you can convince yourself, that depending on the spin position within the gradient field, also just a rotation with the frequency
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+ 
+ \begin{equation} 
+\omega_G(\vec{r}) = \gamma\vec{G}(t)\cdot\vec{r}
+ \end{equation}
+     \end{minipage}
+}
+
+around the z-axis occurs. The actual rotation angle depends here on the spatial position. Still, not the gradient, but the gradients area, or the gradient moment 
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+  \begin{equation} 
+ \mathbf{\vec{g}=\int \vec{G(t)}dt}
+  \end{equation}
+\end{minipage}
+}
+
+of a finite gradient event defines this rotation angle by $\gamma \vec{g}\cdot \vec{r}$. Thus a gradient event has 4 degrees of freedom, the gradient amplitdes and the time, or the gradient areas and the time:
 
 \begin{itemize}
-\item \textbf{gradient moment event}:  $(g_x, g_y, g_z)$
+\item \textbf{gradient event}:  $(g_x, g_y, g_z, t)$  or $(G_x, G_y, G_z,t)$
 \end{itemize}
 The linear gradients, can be altered by changing the current in the gradient coils. Gradients are especially important during encoded signal acquisition, as they link position and frequency.
 
-We normally have no control of the $B_0$ field, as it is the static magnetic field generated by the superconducting coil. Still we sometimes can make use of $B_0$ and the Larmor preseccion by certain event time delays to evolve by $\omega_0\cdot t$.  In addition, the event time has influence on the relaxation of the magnetization and can by that affect the actual image contrast. You will see soon that correct timings are extremely important for MRI sequence to work:
+We normally have no control of the $B_0$ field, as it is the static magnetic field generated by the superconducting coil. Still we sometimes can make use of $B_0$ and the Larmor preseccion by certain event time delays to evolve by $\omega_0\cdot \Delta t$.  In addition, the event time has influence on the relaxation of the magnetization and can by that affect the actual image contrast. You will see soon that correct timings are extremely important for MRI sequence to work:
 
 \begin{itemize}
-\item \textbf{event time}:t
+\item \textbf{time delays}: $\Delta t$ 
 \end{itemize}
 
 So now we have a way to alter the magnetization. The reason we want to do this, is because, as soon as we have magnetization in the transverse plane, the Larmor precession of this magnetization will induce a voltage in our receive coils.  To acquire this signal we need a last event type. This actually just a flag if we want to acquire signal that is induced in the receive coils, ie. if the analogue-to-digital converter (ADC) is switched on or off. As the acquired signal is is also a two component signal or complex signal, an ADC event also requires a phase angle, that is typically matched to the excitation angle $\phi_{rf}$
@@ -284,20 +351,58 @@ There is not really a complex voltage measured, this is just a mathematical tric
  \end{equation}
  But because these are always 90 degree phase shifted they fulfill the relation of a combined complex number $M_{xy}=M_x+i\cdot M_y$. Thus, we do not measure the spin density, we actually measure the sum of the transverse magnetization in each voxel. If using the exp depiction of this complex number, we will measure a magnitude and a phase of this magnetization state.
  
-So back to eq. \eqref{eq:signal}, if we now use a new variable $\vec{k}(t)=\vec{g}(t)\frac{\gamma}{2\pi}$we obtain something that looks exactly like a Fourier transformation from the real space to the spatial frequency space, or k-space.
+So back to eq. \eqref{eq:signal}, if we now use a new variable 
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+  \begin{equation} 
+\vec{k}(t)=\vec{g}(t)\frac{\gamma}{2\pi}
+  \end{equation} 
+   \end{minipage}
+   }
+we obtain something that looks exactly like a Fourier transformation from the real space to the spatial frequency space, or k-space.
+
+\fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
  \begin{equation} \label{eq:signal_kspace}
     s(t)=  s(\vec{k}(t)) = \int_{\vec{r}} M_{xy}(\vec{r})\cdot\exp(-i2\pi\vec{r}\cdot \vec{k}) d^3r
- \end{equation}Thus, the signal for a given gradient moment g, or k, is  actually just exactly the Fourier transform of the  excited transverse magnetization. 
+ \end{equation}
+    \end{minipage}
+  }
+Thus, the signal for a given gradient moment g, or k, is  actually just exactly the Fourier transform of the  excited transverse magnetization. 
  As the Fourier transform is invert-able, the inverse Fourier transform of the signal acquired at a full k-space grid will generate an image of the transverse magnetization.
  
+ \fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
 \begin{equation} \label{eq:signaltoimg}
    M_{xy}(\vec{r})=  \int_{\vec{k}} s(\vec{k})\cdot \exp(-i2\pi\vec{r}\cdot \vec{k}) d^3k
  \end{equation} 
- 
+    \end{minipage}
+  }
  To look what happens during encoding run the  \href{http://www.drcmr.dk/BlochSimulator/}{www.drcmr.dk/BlochSimulator} using the mode PLANE, GX=2, GY=3, 90-hard; on the right you will see the sum of all $M_{xy}$ which is the received signal of \eqref{eq:signal}.
  
  
  \textbf{With equations \eqref{eq:BlochSol_rotframe}, \eqref{eq:signal_kspace}, and \eqref{eq:signaltoimg} we have everything to generate an MR image: (i) we know how to create transverse magnetization by rf events, (ii) we know how to spatially encode it using gradient events, and (iii) we know how to interpret it to generate an image.}
+
+ A last remark is the emphasis on the k-space variable  $\vec{k}(t)$. As the signal we acquire is actually the signal at a certain k-space coordinate $\vec{k}(t)$, it is helpful to keep in mind that this is really the integral of all gradients played out since the last excitation, or the sum of all previous gradient moments.
+
+ \fcolorbox{white}{mygelb}{
+ \addtolength{\linewidth}{-2\fboxsep}%
+ \addtolength{\linewidth}{-2\fboxrule}%
+ \begin{minipage}{\linewidth}
+\begin{equation} 
+\vec{k}(t)=\frac{\gamma}{2\pi} \int \vec{G(t)}dt=\frac{\gamma}{2\pi} \sum_i{\vec{g}}_i
+\end{equation} 
+\end{minipage}}
+Thus, gradients let us move in the k-space. Moreover, 180-degree rf pulses invert all magnetization, thus all rotations become inverted an we get mirrored in k-space, i.e. $\vec{k}=-\vec{k}$.
+Excitation pulses take new magnetization from the z-axis without any rotation past, this after excitation we are at $\vec{k}=0$ again.
+  
   \newpage
  
 \subsection{MR sequence definition} \label{sec:MRseqdef}
@@ -347,23 +452,22 @@ Download all the code files from github \href{https://github.com/mzaiss/MRTwin_p
 Then follow the README\_HOME.md
 I strongly recommend sypder as editor, as all test were done in this environment.
 Start spyder.
-To have plots as separate window, which is important as we add lines subsequently to some plots, go to Tools->Preferences. Then on the rider \emph{IPythonKonsole} go to \emph{Graphics} and choose for the graphics backend: Automatic. 
+To have plots as separate window, which is important as we add lines subsequently to some plots and also because it allows zooming, go to Tools->Preferences. Then on the rider \emph{IPythonKonsole} go to \emph{Graphics} and choose for the graphics backend: Automatic. 
 
 \textbf{Then you have to close and restart spyder.}
 
 I recommend to switch the layout to matlab layout. Go to View->Layouts -> Matlab Layout or Rstudio Layout.
 
-Once this is set up, make the project code folder \emph{MRTwin\_pulseq/code/MRtwin} your current folder and work directory in spyder. 
+Once this is set up, make the project code folder \emph{MRTwin\_pulseq/ex/} your current folder and work directory in spyder. 
 \textbf{Version control}
 To compare your changes to the original files or to a solution we need a difference tool. On windows to you can use \href{https://winmerge.org/}{Winmerge} or \href{https://tortoisegit.org/}{Tortoise} for Unix Systems see the next section for the FAU-CIP pool.
 
 \subsection{Usage in the FAU-CIP pool}\label{sec:spyder_cip}
-Download all the code files from github \href{https://github.com/mzaiss/MRTwin_pulseq}{https://github.com/mzaiss/MRTwin\_pulseq}   and copy them to your home folder.
-Then follow the README\_CIP.md
+Goto \href{https://github.com/mzaiss/MRTwin_pulseq}{https://github.com/mzaiss/MRTwin\_pulseq} follow the README\_CIP.md
 
 To start spyder run the following commands in a terminal:
 \begin{enumerate}
-\item load python3/anaconda-2022.05
+\item module load python3/anaconda-2022.05
 \item spyder
 \end{enumerate}
 
@@ -551,7 +655,7 @@ else:
     [print(e) for e in error_report]
 
 # PLOT sequence
-sp_adc, t_adc = util.pulseq_plot(seq, clear=False)
+sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False)
 
 # Prepare the sequence output for the scanner
 seq.set_definition('FOV', [fov, fov, slice_thickness])
@@ -613,9 +717,7 @@ The next section runs the simulation using the seq-file ex/out/external.seq and 
 # %% S5:. SIMULATE  the external.seq file and add acquired signal to ADC plot
 
 # Read in the sequence
-seq_file = mr0.PulseqFile("out/external.seq")
-# seq_file.plot()
-seq0 = mr0.Sequence.from_seq_file(seq_file)
+seq0 = mr0.Sequenceimport_file("out/external.seq")
 seq0.plot_kspace_trajectory()
 # Simulate the sequence
 graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
@@ -666,30 +768,35 @@ space = torch.fft.ifft2(spectrum)
 space = torch.fft.ifftshift(space, 0)
 space = torch.fft.ifftshift(space, 1)
 
+\end{minted}
 
+For final depiction of images we use the util function util.MR\_imshow(data, *args, **kwargs). This is because plt.imshow shows the matrix (x,y) as (col,rows), but we typically expect that the x-direction is from left to right so as rows. Thus, util.MR\_imshow is used and transposes the data to (rows,col) before plotting.
+
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
 plt.subplot(345)
 plt.title('k-space')
-plt.imshow(np.abs(kspace.numpy()))
+util.MR_imshow(np.abs(kspace.numpy()))
 plt.subplot(349)
 plt.title('k-space_r')
-plt.imshow(np.log(np.abs(kspace.numpy())))
+util.MR_imshow(np.log(np.abs(kspace.numpy())))
 
 plt.subplot(346)
 plt.title('FFT-magnitude')
-plt.imshow(np.abs(space.numpy()))
+util.MR_imshow(np.abs(space.numpy()))
 plt.colorbar()
 plt.subplot(3, 4, 10)
 plt.title('FFT-phase')
-plt.imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
+util.MR_imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
 plt.colorbar()
 
 # % compare with original phantom obj_p.PD
 plt.subplot(348)
 plt.title('phantom PD')
-plt.imshow(PD)
+util.MR_imshow(PD)
 plt.subplot(3, 4, 12)
 plt.title('phantom B0')
-plt.imshow(B0)
+util.MR_imshow(B0)
+
 
 
 \end{minted}
@@ -1021,6 +1128,9 @@ With this information you can now do the next exercises
 
 \end{enumerate}
 
+\subsection{exA00\_phantom}
+To be able to simulate a MR signal, we need to define at least a minimal \textbf{MR phantom object }describing our spin system. Get familiar with the pixelwise definition of MR phantom objects, and load more complex MR phantoms
+
 \newpage
 \subsection{ex01\_FID}
 This is  the simplest MR sequence that just consists of an ADC event and an rf excitation.
@@ -1039,7 +1149,7 @@ This is  the simplest MR sequence that just consists of an ADC event and an rf e
 \begin{figure}[H] 
 \centering
 \includegraphics[width=10cm]{img/exA1_FID.png}
-\caption{An FID in the on-resonant rotating frame (green) and in an off-resonant frame, eg. the lab fram (orange/blue). } \label{fig:exA4_STE}
+\caption{An FID in the on-resonant rotating frame (green) and in an off-resonant frame, eg. the lab fram (orange/blue). } \label{fig:exA1_FID}
 \end{figure}
 
 
@@ -1071,7 +1181,7 @@ This is  the simplest MR sequence that just consists of an ADC event and an rf e
 
 \begin{enumerate}
 \item  	This ex starts from the single FID. Add a delay of a few ms between the rf and the adc.
-		Add a further rf event to create an echo in the ADC (starting at 12 ms). Which flip angle generates the highest echo?
+		Add a further rf event to create an echo in the ADC (starting at 12 ms). Which flip angle generates the highest echo? (if you still want to see the FID, you can also add a second FID.)
 \item  	try to find a way so that the echo forms in the middle of the ADC. What is the general rule for the echo position in time?
 \item  	Try to adjust rf phase offset / adc phase offset to get (i) a real and negative echo, (ii) a real and positive echo.
 
@@ -1228,7 +1338,7 @@ Now you have your first fully encoded MR image!
 \subsection{exB05\_GRE\_2D\_fully\_relaxed}
 This file is a cleaned up version of the solution to exB04.
 \begin{enumerate}
-\item Plot the k-space as an image. Use abs(kspace) and log(abs(kspace). Plot the k-space trajectory with (signal, \_= sim\_external(obj=obj\_p,\emph{plot\_seq\_k=[0,1]})).
+\item Plot the k-space as an image. Use abs(kspace) and log(abs(kspace). Plot the k-space trajectory.
 \item Now, excite only certain k-space lines with 90 degree, set other rf flip angle close to 0.
 \item What happens if you only excite every second line?
 
@@ -1359,36 +1469,125 @@ flip angle was set to 5 degree
 
 \end{enumerate}
 
+\subsection{exD02\_bSSFP\_2D\_rotatedFOV}
+This starts from solD01.
 
-\subsection{exD02\_radialssfp}
-\begin{enumerate}
-\item Try to sample the k-space not Cartesian, but with radial spokes
-\end{enumerate}
+We want to rotate the FOV for this sequence now.
+Remember: a 90 degree rotation we could achieve by switching the x and the y gradients.
+A general rotation needs for every gradient always a mixture of x and y.
+The transformation you can get by recapitulate the 
+
+https://en.wikipedia.org/w/index.php?title=Polar\_coordinate\_system
+
 
 \subsection{exE01\_FLASH\_2D}
 Instead of simulating, we will now send the sequence file to a real MRI scanner.
-Thus you can add in section S5 the following lines:
+
+To do so, we first have to make our sequence scanner ready.
+
+The first problem is that we always assumed a 2D object, at a real scanner the object is 3D and we need to do slice selection, thus we need slice selection gradients with our rf pulses.
+https://mriquestions.com/slice-selective-excitation.html 
+
+We get them automatically from pypulseq, and need to add them properly to our sequence:
 \begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
-from new_core import util
-signal = util.get_signal_from_real_system('out/' + experiment_id +'.seq.dat', Nphase, Nread)
+rf1, gz, gzr = pp.make_sinc_pulse(
+    flip_angle=90 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
+    slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
+    system=system, return_gz=True
+)
+...
+...
+seq.add_block(rf1, gz)
+seq.add_block(gzr)
+\end{minted}
+Be careful with altered timing!
+
+
+The second problem is, that we always worked in unit coordinates in k-space 1/m.
+We just matched the object size to 1 m.
+Remove the line
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
+obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+\end{minted}
+Now you see the actual size of the phantom in a 1 m FOV. Now you need to adjust the FOV or zoom!
+
+The gradient scaling to get the right FOV is of course very important for a real scan.
+
+To send the sequence to the real scanner, you can add in section S5 the following lines:
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
+use_simulation = False
+
+if use_simulation:
+    seq_file = mr0.PulseqFile("out/external.seq")
+    seq0 = mr0.Sequence.import_file("out/external.seq")
+    #seq0.plot_kspace_trajectory()
+    graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
+    signal = mr0.execute_graph(graph, seq0, obj_p)
+    spectrum = torch.reshape((signal), (Nphase, Nread)).clone().transpose(1, 0)
+    kspace = spectrum
+    # PLOT sequence with signal in the ADC subplot
+    plt.close(11);plt.close(12)
+    sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
+
+else:
+    signal = mr0.util.get_signal_from_real_system('out/' + experiment_id + '.seq.dat', Nphase, Nread)
+    spectrum = torch.reshape((signal), (Nphase, Nread, 20)).clone().transpose(1, 0)
+    
 \end{minted}
 
-Now you have to manually copy the seq file to a FAUbox folder. Then after the scan there will be a .seq.dat file with the same filename. If you copy this back, the code will read the real MR data and reconstruct it. 
+You see that there is a difference between the signals.
 
-\subsection{exF01\_undersampled\_CS\_reco}
-Try to use the CS aproaches for the Cartesian undersampled data
+The simulated signal has (Nphase, Nread) elements, the real signal is acquired woth a 20-channel head coil, thus more signal elements are available (Nphase, Nread,20). 
+We have to either FFT all coil data, and sum it. Or we just look at one individual coil.
+Either before FFT select one coil:
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
+spectrum =spectrum[:,:,0]
+\end{minted}
+or after FFT do:
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
+
+if use_simulation==False:
+    space = torch.sum(space.abs(), 2)
+    
+\end{minted}
+The second option will have more signal (sum of squares of all coils), but we loose the phase information.
+The first option has less signal, but we can reconstruct the phase.
+
+To make sure that your sequence is not affected by previous sequences, you can add a 5 s delay before your sequence, so you get the full signal.
+
+Finally, alter the experiment id  by adding your name as a suffix:
+\begin{minted}[fontsize=\scriptsize, bgcolor=bg]{python}
+experiment_id = 'exE02_RARE_2D_Meier_A'
+\end{minted}
+
+
+Now you have to manually copy the seq file (exE02\_RARE\_2D\_Meier\_A.seq) to a FAUbox folder. Then after the scan there will be a .seq.dat file with the same filename. If you copy this back, the code will read the real MR data and reconstruct it. 
+
+\subsection{exF01\_bSSFP\_2D\_radial\_nufft}
+This starts from solD02.
+
+Instead of Cartesian sampling, we want to realize a radial sampling scheme, which means we acquire the spokes of a wheel, and every acquired line runs through the center of the k-space, just with a different angle, until the full k-space is covered.
+
 \begin{enumerate}
-\item For this just use the code as is and play with the undersampling pattern and the iterative reconstruction parameters denoising\_strength and number\_of\_iterations in the CS reconstruction part S6.
-\item How many points can be excluded?
-\item You can also try wavelet domain (uncomment code line)
+\item Try to sample the k-space not Cartesian, but with radial spokes
+\item Reconstruct this by using the non-uniform FFT
 \end{enumerate}
-        
-\subsection{exF02\_radialssfp\_CS\_reco}       
+
+
+\subsection{exF02\_bSSFP\_2D\_radial\_CS}     
 Try to use the CS approaches for the radial undersampled data.
 
 \begin{enumerate}
 \item Reduce the number of spokes by Nphase, 
 \item provide the regridded kspace and the undersampling pattern of the radial trajectory to to the CS algorithm of the previous exercise.
+\end{enumerate}
+
+\subsection{exF03\_simple\_undersampled\_CS}   
+Try to use the CS approaches for the Cartesian undersampled phantom data
+\begin{enumerate}
+\item For this just use the code as is and play with the undersampling pattern and the iterative reconstruction parameters denoising\_strength and number\_of\_iterations in the CS reconstruction part S6.
+\item How many points can be excluded?
+\item You can also try wavelet domain (uncomment code line)
 \end{enumerate}
 
 \newpage

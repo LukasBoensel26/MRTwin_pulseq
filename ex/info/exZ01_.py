@@ -4,8 +4,7 @@ Exercises - Homework:
 1.1. Spin echo EPI  with zig-zag or non blipped trajectory and silent EPI   (evtl propeller EPI)
 hint: exersice or any textbook for spin echo, http://mri.beckman.illinois.edu/interactive/topics/contents/fast_imaging/figures/zig.shtml
 hint: Fig 2 in https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5836719/, reuse radial reco
- reuse radial reco
-
+ reuse radial reco,   pp.make_extended_trapezoid
 
 1.2. DREAM MRI
 two readouts from one measurement: eg. FID, STE as two separate contrasts
@@ -17,7 +16,7 @@ GRE DWI and spin echo DWI
 hint: any textbook, https://blog.ismrm.org/2017/06/06/dwe-part-2/ 
 
 
-1.4. B0 mapping  
+1.4. B0 / T2* mapping  
 hint: FLASH phase maps, any text book, both TE after one excitation
 
 
@@ -27,8 +26,7 @@ reuse MP-FLASH
 
 
 1.6a. T1 mapping  (invrec)
-hint: any textbook, reuse MP-LASH
-
+hint: any textbook, reuse MP-FLASH
 
 1.6a. T1 mapping  (two flipangles)
 hint: equation 3a and 3b of https://onlinelibrary.wiley.com/doi/full/10.1002/mrm.21969
@@ -49,6 +47,20 @@ hint: textbook and https://mriquestions.com/partial-fourier.html
 
 1.10. Spiral Trajectory -  EPI
 any textbook and https://pulseq.github.io/, reuse radial reco
+pp.make_arbitrary_grad.make_arbitrary_grad
+pp.points_to_waveform
+pp.traj_to_grad
+grad_raster_time = 10e-6   % better!
+seq = pp.Sequence(system=system)  % more acuarate
+seq.calculate_kspace()
+# Plot k-spaces
+ktraj_adc, ktraj, t_excitation, t_refocusing, _ = seq.calculate_kspace()
+plt.plot(ktraj.T)  # Plot the entire k-space trajectory
+plt.figure()
+plt.plot(ktraj[0], ktraj[1], 'b')  # 2D plot
+plt.axis('equal')  # Enforce aspect ratio for the correct trajectory display
+plt.plot(ktraj_adc[0], ktraj_adc[1], 'r.')
+plt.show()
 
 1.11  eight ball echo
 
@@ -64,8 +76,9 @@ any textbook and https://pulseq.github.io/, reuse radial reco
 
 1.17 Fastest Flash with trapezoidal gradients and ramp sampling
 
-
-
+1.18 Slice selection - slice selection profile simulation and meas
+https://github.com/pulseq/MR-Physics-with-Pulseq/tree/main/tutorials/02_rf_pulses
+https://github.com/pulseq/MR-Physics-with-Pulseq/blob/main/slides/D1-1320-RF_Pulses_Tony_Stoecker.pdf
 
 2.1. Code a small Bloch simulator an visualize spins
 

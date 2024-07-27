@@ -48,13 +48,13 @@ rf0, _, _ = pp.make_sinc_pulse(
 )
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=5e-3, system=system)
-gy = pp.make_trapezoid(channel='y', flat_area=Nread, flat_time=5e-3, system=system)
+gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=2e-3, system=system)
+gy = pp.make_trapezoid(channel='y', flat_area=Nread, flat_time=2e-3, system=system)
 
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
 gy_pre = pp.make_trapezoid(channel='y', area=-gx.area / 2, duration=1e-3, system=system)
 
-adc = pp.make_adc(num_samples=Nread, duration=5e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
+adc = pp.make_adc(num_samples=Nread*2, duration=2e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
 
 rf_phase = 180
 rf_inc = 180
@@ -77,8 +77,8 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
 
     seq.add_block(rf1)
 
-    gx = pp.make_trapezoid(channel='x', flat_area=-Nread * np.sin(ii / Nphase * np.pi) + 1e-7, flat_time=5e-3, system=system)
-    gy = pp.make_trapezoid(channel='y', flat_area=Nread * np.cos(ii / Nphase * np.pi) + 1e-7, flat_time=5e-3, system=system)
+    gx = pp.make_trapezoid(channel='x', flat_area=-Nread * np.sin(ii / Nphase * np.pi) + 1e-7, flat_time=2e-3, system=system)
+    gy = pp.make_trapezoid(channel='y', flat_area=Nread * np.cos(ii / Nphase * np.pi) + 1e-7, flat_time=2e-3, system=system)
 
     gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
     gy_pre = pp.make_trapezoid(channel='y', area=-gy.area / 2, duration=1e-3, system=system)
@@ -120,7 +120,7 @@ if 1:
 # Manipulate loaded data
     obj_p.T2dash[:] = 30e-3
     obj_p.D *= 0
-    obj_p.B0 *= 1    # alter the B0 inhomogeneity
+    obj_p.B0 *= 0    # alter the B0 inhomogeneity
     # Store PD for comparison
     PD = obj_p.PD.squeeze()
     B0 = obj_p.B0.squeeze()
@@ -162,7 +162,7 @@ signal = mr0.execute_graph(graph, seq0, obj_p)
 plt.close(11);plt.close(12)
 sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
 
-kspace_adc = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace_adc = torch.reshape((signal), (Nphase, adc.num_samples)).clone().t()
 
 # %% S6:. NUFFT reconstruction with density compensation
 # Zhengguo Tan <zhengguo.tan@gmail.com>
@@ -203,7 +203,7 @@ recon_nufft = nufft_adj(kdat*dcf , traj)
 print('nufft_adj -> image shape: ', recon_nufft.shape)
 
 space = recon_nufft.numpy().squeeze()
-space = np.flip(np.swapaxes(space, -1, -2), -2)
+space = np.flip(space, -1)
 
 plt.subplot(345)
 plt.title('k-space')
