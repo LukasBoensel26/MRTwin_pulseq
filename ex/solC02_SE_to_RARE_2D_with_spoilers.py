@@ -36,54 +36,55 @@ Nphase = 64    # phase encoding steps/samples
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=90 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
+    flip_angle=30 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
 rf2, _, _ = pp.make_sinc_pulse(
-    flip_angle=120 * np.pi / 180, duration=1e-3,
+    flip_angle=60 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
-# rf1 = pp.make_block_pulse(flip_angle=90 * np.pi / 180, duration=1e-3, system=system)
-rf2.delay = 0
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=2e-3, system=system)
-adc = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=90 * np.pi / 180, delay=gx.rise_time, system=system)
+gx = pp.make_trapezoid(channel='x', flat_area=Nread,flat_time=2e-3, system=system)
+adc = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=90 * np.pi/180, delay=gx.rise_time, system=system)
 gx_pre0 = pp.make_trapezoid(channel='x', area=+(1.0 + 3.0) * gx.area / 2, duration=1e-3, system=system)
 gx_prewinder = pp.make_trapezoid(channel='x', area=+3.0 * gx.area / 2, duration=1e-3, system=system)
+
+# calculate TE and delays
+ct=pp.calc_rf_center(rf2)    # rf center time returns time and index of the center of the pulse
+ct[0]                       # this is the rf center time
+
+TE=  6e-3  # the echo time we want, defines the delays we need, min TE~=2ms
+delayTE_1= pp.make_delay(TE/2 - pp.calc_duration(rf1))  # the rf pulses take time, which we need to subtract
+
+delayTE_2= pp.make_delay(TE/2 - ct[0]- rf2.ringdown_time-pp.calc_duration(gx)/2) # half rf and half adc/gx time need to be subtracted, so echo is at adc center
+
+#pp.make_delay(0.0041 - pp.calc_duration(rf1) - rf2.delay - rf2.t[-1] / 2 + rf2.ringdown_time / 2)
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-# seq.add_block(make_delay(5*sdel))
 
-rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
 # FLAIR
-seq.add_block(rf_prep)
-seq.add_block(pp.make_delay(2.7))
-seq.add_block(gx_pre0)
-
-# seq.add_block(make_delay(0.00031))
-seq.add_block(pp.make_delay(0.0009))
+#rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
+# seq.add_block(rf_prep)
+# seq.add_block(make_delay(2.7))
+# seq.add_block(gx_pre0)
 
 seq.add_block(rf1)
 
-pp.calc_duration(rf1)
-pp.calc_duration(gx_pre0)
-
-seq.add_block(gx_pre0, pp.make_delay(0.0041 - pp.calc_duration(rf1) - rf2.delay - rf2.t[-1] / 2 + rf2.ringdown_time / 2))
+seq.add_block(gx_pre0,delayTE_1) # only valid if delayTE_1 longer than gx_pre0
+if pp.calc_duration(gx_pre0)>pp.calc_duration(delayTE_1): raise Exception("below minTE")
 
 for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     seq.add_block(rf2)
-    seq.add_block(pp.make_delay(0.0001))
     gp = pp.make_trapezoid(channel='y', area=ii, duration=1e-3, system=system)
     gp_ = pp.make_trapezoid(channel='y', area=-ii, duration=1e-3, system=system)
-    seq.add_block(gx_prewinder, gp)
+    seq.add_block(gx_prewinder, gp, delayTE_2)  
     seq.add_block(adc, gx)
-    seq.add_block(gx_prewinder, gp_)
-    seq.add_block(pp.make_delay(0.00008))
+    seq.add_block(gx_prewinder, gp_,delayTE_2)
 
 
 # Trajectory calculation and plotting

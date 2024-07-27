@@ -51,25 +51,35 @@ rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, syste
 # Define other gradients and ADC events
 gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=4e-3, system=system)
 adc = pp.make_adc(num_samples=Nread, duration=4e-3, phase_offset=90 * np.pi / 180, delay=gx.rise_time, system=system)
-gx_pre = pp.make_trapezoid(channel='x', area=+gx.area / 2, duration=5e-3, system=system)
+gx_pre = pp.make_trapezoid(channel='x', area=+gx.area / 2, duration=1e-3, system=system)
+
+
+ct=pp.calc_rf_center(rf2)    # rf center time returns time and index of the center of the pulse
+ct[0]                       # this is the rf center time
+
+TE=  10e-3  # the echo time we want, defines the delays we need
+delayTE_1= pp.make_delay(TE/2 - pp.calc_duration(rf1))  # the rf pulses take time, which we need to subtract
+
+delayTE_2= pp.make_delay(TE/2 - ct[0]- rf2.ringdown_time-pp.calc_duration(gx)/2) # half rf and half adc/gx time need to be subtracted, so echo is at adc center
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
+
 for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-    gp = pp.make_trapezoid(channel='y', area=-ii, duration=5e-3, system=system)
+    gp = pp.make_trapezoid(channel='y', area=-ii, duration=1e-3, system=system)
 
     seq.add_block(pp.make_delay(5))
 
     # FLAIR
-    seq.add_block(rf_prep)
-    seq.add_block(pp.make_delay(2.5))
-    seq.add_block(gx_pre)
+    # seq.add_block(rf_prep)
+    # seq.add_block(pp.make_delay(2.5))
+    # seq.add_block(gx_pre)
 
     seq.add_block(rf1)
-    seq.add_block(gx_pre, gp, pp.make_delay(0.01))
+    seq.add_block(gx_pre, gp, delayTE_1) # only valid if delayTE_1 > t(gx_pre,gp)
     seq.add_block(rf2)
-    seq.add_block(pp.make_delay(0.005))
+    seq.add_block(delayTE_2)
     seq.add_block(adc, gx)
 
 

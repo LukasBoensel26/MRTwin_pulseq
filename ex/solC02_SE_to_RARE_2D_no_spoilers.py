@@ -36,19 +36,15 @@ Nphase = 64    # phase encoding steps/samples
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=90 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
+    flip_angle=30 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
 rf2, _, _ = pp.make_sinc_pulse(
-    flip_angle=180 * np.pi / 180, duration=1e-3,
+    flip_angle=60 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
-# rf1 = pp.make_block_pulse(flip_angle=90 * np.pi / 180, duration=1e-3, system=system)
-
-rf2.delay = 0
-# rf2.delay = 5 * 1e-4    # wrong timing! strong artifacts
 
 # Define other gradients and ADC events
 gx = pp.make_trapezoid(channel='x', flat_area=Nread,flat_time=2e-3, system=system)
@@ -56,35 +52,52 @@ adc = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=90 * np.pi/180,
 gx_pre0 = pp.make_trapezoid(channel='x', area=+(1.0 + 0.0) * gx.area / 2, duration=1e-3, system=system)
 gx_prewinder = pp.make_trapezoid(channel='x', area=+0.0 * gx.area / 2, duration=1e-3, system=system)
 
+# calculate TE and delays
+ct=pp.calc_rf_center(rf2)    # rf center time returns time and index of the center of the pulse
+ct[0]                       # this is the rf center time
+
+TE=  6e-3  # the echo time we want, defines the delays we need, min TE~=2ms
+delayTE_1= pp.make_delay(TE/2 - pp.calc_duration(rf1))  # the rf pulses take time, which we need to subtract
+
+delayTE_2= pp.make_delay(TE/2 - ct[0]- rf2.ringdown_time-pp.calc_duration(gx)/2) # half rf and half adc/gx time need to be subtracted, so echo is at adc center
+
+#pp.make_delay(0.0041 - pp.calc_duration(rf1) - rf2.delay - rf2.t[-1] / 2 + rf2.ringdown_time / 2)
+
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 
-rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
 # FLAIR
+#rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
 # seq.add_block(rf_prep)
 # seq.add_block(make_delay(2.7))
 # seq.add_block(gx_pre0)
 
-# seq.add_block(make_delay(0.00031))
-seq.add_block(pp.make_delay(0.0009))
-
 seq.add_block(rf1)
 
-pp.calc_duration(rf1)
-pp.calc_duration(gx_pre0)
-
-seq.add_block(gx_pre0, pp.make_delay(0.0041 - pp.calc_duration(rf1) - rf2.delay - rf2.t[-1] / 2 + rf2.ringdown_time / 2))
+seq.add_block(gx_pre0,delayTE_1) # only valid if delayTE_1 longer than gx_pre0
+if pp.calc_duration(gx_pre0)>pp.calc_duration(delayTE_1): raise Exception("below minTE")
 
 for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     seq.add_block(rf2)
-    seq.add_block(pp.make_delay(0.0001))
     gp = pp.make_trapezoid(channel='y', area=ii, duration=1e-3, system=system)
     gp_ = pp.make_trapezoid(channel='y', area=-ii, duration=1e-3, system=system)
-    seq.add_block(gx_prewinder, gp)
+    seq.add_block(gx_prewinder, gp, delayTE_2)  
     seq.add_block(adc, gx)
-    seq.add_block(gx_prewinder, gp_)
-    seq.add_block(pp.make_delay(0.00008))
+    seq.add_block(gx_prewinder, gp_,delayTE_2)
+
+
+# Trajectory calculation and plotting
+ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc = seq.calculate_kspace()
+time_axis = np.arange(1, ktraj.shape[1] + 1) * system.grad_raster_time
+plt.figure()
+plt.plot(time_axis, ktraj.T)  # Plot the entire k-space trajectory
+plt.plot(t_adc, ktraj_adc[0], '.')  # Plot sampling points on the kx-axis
+plt.figure()
+plt.plot(ktraj[0], ktraj[1], 'b')  # 2D plot
+plt.axis('equal')  # Enforce aspect ratio for the correct trajectory display
+plt.plot(ktraj_adc[0], ktraj_adc[1], 'r.')  # Plot  sampling points
+plt.show()
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -118,7 +131,7 @@ if 1:
 # Manipulate loaded data
     obj_p.T2dash[:] = 30e-3
     obj_p.D *= 0 
-    obj_p.B0 *= 1   # alter the B0 inhomogeneity
+    obj_p.B0 *= 1    # alter the B0 inhomogeneity
     obj_p.B1 *= 1  # alter the B1 inhomogeneity
     # Store PD for comparison
     PD = obj_p.PD.squeeze()
@@ -203,7 +216,6 @@ util.MR_imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
 plt.colorbar()
 
 # % compare with original phantom obj_p.PD
-
 plt.subplot(348)
 plt.title('phantom PD')
 util.MR_imshow(PD)
