@@ -198,7 +198,7 @@ def pulseq_plot(seq: Sequence, type: str = 'Gradient', time_range=(0, np.inf), t
 
 def MR_imshow(data, *args, **kwargs):    # plt.imshow shows the matrix (x,y) as (col,rows)
     try: # Attempt to transpose data
-        transposed_data = np.transpose(data) # util.MR_imshow transposes to (rows,col)
+        transposed_data = np.transpose(data) # mr0.util.imshow transposes to (rows,col)
     except TypeError as e:
         print(f"Error transposing data: {e}")
         transposed_data=data

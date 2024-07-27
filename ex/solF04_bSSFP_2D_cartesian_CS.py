@@ -5,7 +5,6 @@ import MRzeroCore as mr0
 import numpy as np
 from matplotlib import pyplot as plt
 import pypulseq as pp
-import util
 import torch
 # makes the ex folder your working directory
 import os 
@@ -163,21 +162,21 @@ kspace_vis = np.log(1+abs(np.fft.fftshift((kspace.copy()))))
 fig = plt.figure(dpi=90)
 plt.subplot(321)
 plt.set_cmap(plt.gray())
-# util.MR_imshow(abs(recon_nufft))
+# mr0.util.imshow(abs(recon_nufft))
 plt.ylabel('recon_full')
 plt.subplot(322)
 plt.set_cmap(plt.gray())
-util.MR_imshow(abs(pattern_vis))
+mr0.util.imshow(abs(pattern_vis))
 plt.ylabel("pattern_vis")
 plt.title("{:.1f} % sampled".format(actual_measured_percent))
 
 plt.subplot(324)
 plt.set_cmap(plt.gray())
-util.MR_imshow(np.log(1+abs(kspace_adc.numpy().copy())))
+mr0.util.imshow(np.log(1+abs(kspace_adc.numpy().copy())))
 plt.ylabel('kspace_adc')
 plt.subplot(326)
 plt.set_cmap(plt.gray())
-util.MR_imshow(kspace_vis)
+mr0.util.imshow(kspace_vis)
 plt.ylabel('kspace*pattern')
 plt.show()
 
@@ -266,11 +265,11 @@ for i in range(number_of_iterations):
 
 plt.subplot(323)
 plt.set_cmap(plt.gray())
-util.MR_imshow(abs(first))
+mr0.util.imshow(abs(first))
 plt.ylabel('first iter (=NUFFT)')
 plt.subplot(325)
 plt.set_cmap(plt.gray())
-util.MR_imshow(abs(current_shrink))
+mr0.util.imshow(abs(current_shrink))
 plt.ylabel('final recon')
 
 

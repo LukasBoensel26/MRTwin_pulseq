@@ -5,7 +5,6 @@ Created on Wed Feb 12 23:01:40 2020
 @author: zaissmz
 """
 import numpy as np
-import util
 import torch
 from matplotlib import pyplot as plt
 
@@ -17,7 +16,7 @@ AA[7, :] = np.linspace(10, 24, 24)
 AA[:, 5] = np.linspace(10, 24, 24)
 
 plt.figure()
-util.MR_imshow(AA)
+mr0.util.imshow(AA)
 plt.title('original')
 
 BB = AA.copy()
@@ -25,7 +24,7 @@ BB = AA[::-1, :]  # reverse manipulation 1, reverse first dimension
 # BB = np.flip(AA, 0) # does the same
 
 plt.figure()
-util.MR_imshow(BB)
+mr0.util.imshow(BB)
 plt.title('reverse manipulation 1')
 
 CC = AA.copy()
@@ -33,7 +32,7 @@ CC[::2, :] = AA[::2, ::-1]  # reverse manipulation 2, only every second line
 # CC[::2, :] = np.flip(AA[::2, :], 0)  # does the same
 
 plt.figure()
-util.MR_imshow(CC)
+mr0.util.imshow(CC)
 plt.title('reverse manipulation 2')
 
 
@@ -44,21 +43,21 @@ AA[:, 5] = np.linspace(10, 24, 24)
 
 plt.figure()
 plt.subplot(131)
-util.MR_imshow(AA)
+mr0.util.imshow(AA)
 plt.title('original')
 
 BB = AA.copy()
 BB[:-1, ] = AA[1:, :]  # shift manipulation 1, shift part of array
 
 plt.subplot(132)
-util.MR_imshow(BB)
+mr0.util.imshow(BB)
 plt.title('shift manipulation 1')
 
 CC = AA.copy()
 CC = np.roll(AA, -1, 0)  # shift manipulation 2, roll the array
 
 plt.subplot(133)
-util.MR_imshow(CC)
+mr0.util.imshow(CC)
 plt.title('shift manipulation 2 - np.roll')
 
 
@@ -69,7 +68,7 @@ AA[7, :] = torch.linspace(10, 24, 24)
 AA[:, 5] = torch.linspace(10, 24, 24)
 
 plt.figure()
-util.MR_imshow(AA)
+mr0.util.imshow(AA)
 plt.title('original')
 
 BB = AA.clone()
@@ -77,7 +76,7 @@ BB = torch.flip(AA, [0])  # reverse manipulation 1, reverse first dimension
 # BB = AA[::-1, :]  # does not work in torch
 
 plt.figure()
-util.MR_imshow(BB)
+mr0.util.imshow(BB)
 plt.title('reverse manipulation 1')
 
 CC = AA.clone()
@@ -86,7 +85,7 @@ CC[::2, :] = torch.flip(AA[::2, :], [0])
 # CC[::2, :] = AA[::2, ::-1]  # does not work in torch
 
 plt.figure()
-util.MR_imshow(CC)
+mr0.util.imshow(CC)
 plt.title('reverse manipulation 2')
 
 
@@ -97,21 +96,21 @@ AA[:, 5] = torch.linspace(10, 24, 24)
 
 plt.figure()
 plt.subplot(131)
-util.MR_imshow(AA)
+mr0.util.imshow(AA)
 plt.title('original')
 
 BB = AA.clone()
 BB[:-1, ] = AA[1:, :]  # shift manipulation 1, shift part of array
 
 plt.subplot(132)
-util.MR_imshow(BB)
+mr0.util.imshow(BB)
 plt.title('shift manipulation 1')
 
 CC = AA.clone()
 CC = torch.roll(AA, -1, 0)  # shift manipulation 2, roll the array
 
 plt.subplot(133)
-util.MR_imshow(CC)
+mr0.util.imshow(CC)
 plt.title('shift manipulation 2 - torch.roll')
 
 

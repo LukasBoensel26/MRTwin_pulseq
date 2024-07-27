@@ -1,7 +1,7 @@
 # %% S0. SETUP env
 import MRzeroCore as mr0
 import pypulseq as pp
-import util
+
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
@@ -207,21 +207,21 @@ space = np.flip(space, -1)
 
 plt.subplot(345)
 plt.title('k-space')
-util.MR_imshow(np.abs(kspace_adc))
+mr0.util.imshow(np.abs(kspace_adc))
 
 plt.subplot(346)
 plt.title('FFT-magnitude')
-util.MR_imshow(np.abs(space))
+mr0.util.imshow(np.abs(space))
 plt.colorbar()
 plt.subplot(3, 4, 10)
 plt.title('FFT-phase')
-util.MR_imshow(np.angle(space), vmin=-np.pi, vmax=np.pi)
+mr0.util.imshow(np.angle(space), vmin=-np.pi, vmax=np.pi)
 plt.colorbar()
 
 # % compare with original phantom obj_p.PD
 plt.subplot(348)
 plt.title('phantom PD')
-util.MR_imshow(PD)
+mr0.util.imshow(PD)
 plt.subplot(3, 4, 12)
 plt.title('phantom B0')
-util.MR_imshow(B0)
+mr0.util.imshow(B0)

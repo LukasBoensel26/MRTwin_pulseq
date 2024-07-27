@@ -1,6 +1,5 @@
 # %% S0. SETUP env
 import pypulseq as pp
-import util
 import numpy as np
 import MRzeroCore as mr0
 # makes the ex folder your working directory
