@@ -101,9 +101,6 @@ if 1:
     obj_p.T2dash[:] = 30e-3
     obj_p.D *= 0 
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
-    # Store PD and B0 for comparison
-    PD = obj_p.PD.squeeze().squeeze()
-    B0 = obj_p.B0.squeeze().squeeze()
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
@@ -118,9 +115,6 @@ else:
         voxel_size=0.1,
         voxel_shape="box"
     )
-    # Store PD for comparison
-    PD = obj_p.generate_PD_map().squeeze()
-    B0 = torch.zeros_like(PD)
 
 obj_p.plot()
 obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
@@ -194,7 +188,7 @@ plt.colorbar()
 # % compare with original phantom obj_p.PD
 plt.subplot(348)
 plt.title('phantom PD')
-mr0.util.imshow(PD)
+mr0.util.imshow(obj_p.recover().PD.squeeze())
 plt.subplot(3, 4, 12)
 plt.title('phantom B0')
-mr0.util.imshow(B0)
+mr0.util.imshow(obj_p.recover().B1.squeeze())

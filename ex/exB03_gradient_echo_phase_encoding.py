@@ -107,7 +107,6 @@ else:
     )
     # Store PD for comparison
     PD = obj_p.generate_PD_map()
-
 obj_p.plot()
 obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
 # Convert Phantom into simulation data
@@ -170,7 +169,6 @@ ax.grid()
 # %% compare with original phantom obj_p.PD
 plt.subplot(313)
 plt.title('phantom projection')
-
 import torch.nn.functional as F
 phantom_resampled = F.interpolate(PD.permute(2, 0, 1).unsqueeze(0) , size=(Nphase, Nphase), mode='nearest').squeeze(0)  # Squeeze to remove batch dimension if it was added
 phantom_resampled = np.roll(phantom_resampled, -Nphase // sz[1] // 2 + 1, 0)  # this is needed due to the oversampling of the phantom, szread>sz
