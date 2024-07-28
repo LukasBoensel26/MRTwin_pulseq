@@ -23,12 +23,11 @@ system = pp.Opts(
     slew_unit='T/m/s',
     rf_ringdown_time=20e-6,
     rf_dead_time=100e-6,
-    adc_dead_time=20e-6,
-    grad_raster_time=50*10e-6
+    adc_dead_time=20e-6
 )
 
 # %% S2. DEFINE the sequence 
-seq = pp.Sequence()
+seq = pp.Sequence(system) 
 
 # Define FOV and resolution
 fov = 1000e-3 
