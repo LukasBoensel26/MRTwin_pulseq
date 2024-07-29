@@ -34,7 +34,7 @@ else:
     )
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+obj_p.size=torch.tensor([1, 1, 0.8]) 
 # Convert Phantom into simulation data
 obj_p = obj_p.build()
 
@@ -58,6 +58,6 @@ obj_p = mr0.CustomVoxelPhantom(
 
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+obj_p.size=torch.tensor([1, 1, 0.8]) 
 # Convert Phantom into simulation data
 obj_p = obj_p.build()

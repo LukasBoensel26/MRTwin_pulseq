@@ -2,15 +2,15 @@
 import MRzeroCore as mr0
 import pypulseq as pp
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
+import util
+import torch
 
 # makes the ex folder your working directory
-import os 
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+import os
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
-experiment_id = 'exA04_stimulated_echo'
+experiment_id = 'exA04_stimulated_echo_zaiss_fruit3'
 
 
 # %% S1. SETUP sys
@@ -19,17 +19,17 @@ experiment_id = 'exA04_stimulated_echo'
 system = pp.Opts(
     max_grad=28, grad_unit='mT/m', max_slew=150, slew_unit='T/m/s',
     rf_ringdown_time=20e-6, rf_dead_time=100e-6,
-    adc_dead_time=20e-6
+    adc_dead_time=20e-6, grad_raster_time=50 * 10e-6
 )
 
 
 # %% S2. DEFINE the sequence
-seq = pp.Sequence(system) 
+seq = pp.Sequence()
 
 # Define FOV and resolution
-fov = 1000e-3
+fov = 220e-3
 Nread = 128
-Nphase = 1
+Nphase = 4
 slice_thickness = 8e-3  # slice
 
 # Define rf events
@@ -55,8 +55,7 @@ adc1 = pp.make_adc(num_samples=Nread, duration=100e-3, phase_offset=0 * np.pi / 
 adc2 = pp.make_adc(num_samples=Nread, duration=200e-3, phase_offset=0 * np.pi / 180, system=system)
 gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=200e-3, system=system)
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
-gspoil = pp.make_trapezoid(channel='x', area=1000, duration=5e-3, system=system)
-
+gspoil = pp.make_trapezoid(channel='x', area=Nread, duration=5e-3, system=system)
 
 # ======
 # CONSTRUCT SEQUENCE
@@ -65,8 +64,9 @@ seq.add_block(rf1)
 seq.add_block(adc1)
 seq.add_block(pp.make_delay(0.05))
 seq.add_block(rf2)
+# seq.add_block(gspoil)
 seq.add_block(adc2)
-# for _ in range(6):
+# for _ in range(5):
 #     seq.add_block(adc2)
 seq.add_block(rf3)
 seq.add_block(adc2)
@@ -85,7 +85,7 @@ else:
     [print(e) for e in error_report]
 
 # PLOT sequence
-sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, figid=(11,12))
+sp_adc, t_adc = util.pulseq_plot(seq, clear=False, figid=(11,12))
 
 # Prepare the sequence output for the scanner
 seq.set_definition('FOV', [fov, fov, slice_thickness])
@@ -102,8 +102,7 @@ if 0:
     # obj_p = mr0.VoxelGridPhantom.load_mat('../data/phantom2D.mat')
     obj_p = mr0.VoxelGridPhantom.load_mat('../data/numerical_brain_cropped.mat')
     obj_p = obj_p.interpolate(sz[0], sz[1], 1)
-
-# Manipulate loaded data
+    # Manipulate loaded data
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
     obj_p.D *= 0 
 else:
@@ -121,23 +120,48 @@ else:
     )
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
 # Convert Phantom into simulation data
 obj_p = obj_p.build()
 
 
+
 # %% S5:. SIMULATE  the external.seq file and add acquired signal to ADC plot
 
-# Read in the sequence 
-seq0 = mr0.Sequence.import_file("out/external.seq")
- 
-# #seq0.plot_kspace_trajectory()
-# Simulate the sequence
-graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
-signal = mr0.execute_graph(graph, seq0, obj_p,min_latent_signal=-1)
+use_simulation = False
 
-# PLOT sequence with signal in the ADC subplot
-plt.close(11);plt.close(12) # close figures without signal
-sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
- 
- 
+if use_simulation:
+    seq_file = mr0.PulseqFile("out/external.seq")
+    seq0 = mr0.Sequence.from_seq_file(seq_file)
+    # seq0.plot_kspace_trajectory()
+    graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
+    signal = mr0.execute_graph(graph, seq0, obj_p)
+    spectrum = torch.reshape((signal), (Nphase, Nread)).clone().transpose(1, 0)
+    kspace = spectrum
+    # PLOT sequence with signal in the ADC subplot
+    plt.close(11);plt.close(12)
+    sp_adc, t_adc = util.pulseq_plot(seq, clear=False, signal=signal.numpy())
+     
+else:
+    signal = util.get_signal_from_real_system('out/' + experiment_id + '.seq.dat', Nphase, Nread)
+    spectrum = torch.reshape((signal), (Nphase, Nread, 20)).clone().transpose(1, 0)
+    spectrum = spectrum[:, :, 10]
+    kspace = spectrum
+    
+
+
+# %% S6: MR IMAGE RECON of signal ::: #####################################
+fig = plt.figure()  # fig.clf()
+plt.subplot(411)
+plt.title('ADC signal')
+plt.plot(torch.real(signal), label='real')
+plt.plot(torch.imag(signal), label='imag')
+
+# this adds ticks at the correct position szread
+major_ticks = np.arange(0, Nphase * Nread, Nread)
+ax = plt.gca()
+ax.set_xticks(major_ticks)
+ax.grid()
+
+
+
+

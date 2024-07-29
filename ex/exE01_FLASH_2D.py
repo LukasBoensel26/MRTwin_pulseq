@@ -29,21 +29,21 @@ seq = pp.Sequence(system)
 # Define FOV and resolution
 fov = 220e-3
 slice_thickness = 8e-3
-sz = (32, 32)  # spin system size / resolution
 Nread = 64  # frequency encoding steps/samples
 Nphase = 64  # phase encoding steps/samples
 
 # Define rf events
 rf1, gz, gzr = pp.make_sinc_pulse(
-    flip_angle=5 * np.pi / 180, duration=1e-3,
+    flip_angle=12 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
 
+
 # seq.add_block(rf1,gz)
 # seq.add_block(gzr)
 
-zoom = 1
+zoom = 1.3 / fov
 # Define other gradients and ADC events
 gx = pp.make_trapezoid(channel='x', flat_area=Nread * zoom, flat_time=2e-3, system=system)
 adc = pp.make_adc(num_samples=Nread, duration=2e-3, delay=gx.rise_time, system=system)
@@ -74,8 +74,7 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     seq.add_block(adc, gx)
     gy_spoil = pp.make_trapezoid( channel='y', area=-ii *zoom, duration=5e-3, system=system)
     seq.add_block(gx_spoil, gy_spoil)
-    if ii < Nphase - 1:
-        seq.add_block(pp.make_delay(0.001))
+    seq.add_block(pp.make_delay(0.01))
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -104,7 +103,7 @@ if 1:
     # (i) load a phantom object from file
     # obj_p = mr0.VoxelGridPhantom.load_mat('../data/phantom2D.mat')
     obj_p = mr0.VoxelGridPhantom.load_mat('../data/numerical_brain_cropped.mat')
-    obj_p = obj_p.interpolate(sz[0], sz[1], 1)
+    obj_p = obj_p.interpolate(sz[0], sz[1],  1)
 
 # Manipulate loaded data
     obj_p.T2dash[:] = 30e-3
@@ -131,14 +130,14 @@ else:
     B0 = torch.zeros_like(PD)
 
 # obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+# obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
 # Convert Phantom into simulation data
 obj_p = obj_p.build()
 
 
 # %% S5:. SIMULATE  the external.seq file and add acquired signal to ADC plot
 
-use_simulation = True
+use_simulation = False
 
 if use_simulation:
     seq0 = mr0.Sequence.import_file("out/external.seq")
@@ -150,11 +149,12 @@ if use_simulation:
     # PLOT sequence with signal in the ADC subplot
     plt.close(11);plt.close(12)
     sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
-     
+    
 
 else:
     signal = mr0.util.get_signal_from_real_system('out/' + experiment_id + '.seq.dat', Nphase, Nread)
     spectrum = torch.reshape((signal), (Nphase, Nread, 20)).clone().transpose(1, 0)
+    kspace = spectrum
     
     
 
@@ -173,7 +173,7 @@ ax = plt.gca()
 ax.set_xticks(major_ticks)
 ax.grid()
 
-space = torch.zeros_like(spectrum)
+space = torch.zeros_like(kspace)
 
 # fftshift
 spectrum = torch.fft.fftshift(spectrum, 0)
@@ -185,7 +185,9 @@ space = torch.fft.fftshift(space, 0)
 space = torch.fft.fftshift(space, 1)
 
 if use_simulation==False:
+    space0 = space[:,:,0]
     space = torch.sum(space.abs(), 2)
+    
 
 plt.subplot(345)
 plt.title('k-space')
@@ -200,7 +202,7 @@ mr0.util.imshow(np.abs(space.numpy()),vmin=0)
 plt.colorbar()
 plt.subplot(3, 4, 10)
 plt.title('FFT-phase')
-mr0.util.imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
+mr0.util.imshow(np.angle(space0.numpy()), vmin=-np.pi, vmax=np.pi)
 plt.colorbar()
 
 # % compare with original phantom obj_p.PD

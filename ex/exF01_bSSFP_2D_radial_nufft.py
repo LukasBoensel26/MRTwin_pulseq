@@ -192,11 +192,11 @@ if 1:  # NUFFT
 
     spectrum_resampled_x = scipy.interpolate.griddata(
         (grid[:, 0].ravel(), grid[:, 1].ravel()),
-        np.real(signal.ravel()), (X, Y), method='cubic'
+        np.real(signal.ravel()), (X, Y), method='linear'
     )
     spectrum_resampled_y = scipy.interpolate.griddata(
         (grid[:, 0].ravel(), grid[:, 1].ravel()),
-        np.imag(signal.ravel()), (X, Y), method='cubic'
+        np.imag(signal.ravel()), (X, Y), method='linear'
     )
 
     kspace_r = spectrum_resampled_x + 1j * spectrum_resampled_y

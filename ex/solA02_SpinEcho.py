@@ -53,7 +53,7 @@ adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 18
 # CONSTRUCT SEQUENCE
 # ======
 seq.add_block(rf1)
-seq.add_block(pp.make_delay(0.010 - rf1.delay - rf2.delay))
+seq.add_block(pp.make_delay(pp.calc_duration(adc)/2 - rf1.delay - rf2.delay))
 seq.add_block(rf2)
 seq.add_block(adc)
 
