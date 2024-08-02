@@ -36,30 +36,32 @@ Nphase = 64  # phase encoding steps/samples
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=90 * np.pi / 180, duration=1e-3,
+    flip_angle=5 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
-
 
 # Define other gradients and ADC events
 gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=10e-3, system=system)
 adc = pp.make_adc(num_samples=Nread, duration=10e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=5e-3, system=system)
+gx_spoil = pp.make_trapezoid(channel='x', area=-gx_pre.area, duration=1e-3, system=system)
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-    seq.add_block(pp.make_delay(1))
+    #seq.add_block(pp.make_delay(1))
 
     seq.add_block(rf1)  # add rf1 with 90° flip_angle
 
     gp = pp.make_trapezoid(channel='y', area=ii, duration=5e-3, system=system)
+    gy_spoil = pp.make_trapezoid(channel='y', area=-ii, duration=1e-3, system=system)
     seq.add_block(gx_pre, gp)
     seq.add_block(adc, gx)
+    seq.add_block(gx_spoil, gy_spoil)
     if ii < Nphase - 1:
-        seq.add_block(pp.make_delay(10))
+        seq.add_block(pp.make_delay(0.01)) # if this is too short then the magnetizations are not yet fully relaxed
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence as .seq
@@ -127,7 +129,7 @@ obj_p = obj_p.build()
 # Read in the sequence 
 seq0 = mr0.Sequence.import_file("out/external.seq")
  
-#seq0.plot_kspace_trajectory()
+seq0.plot_kspace_trajectory()
 # Simulate the sequence
 graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
 signal = mr0.execute_graph(graph, seq0, obj_p)
@@ -138,7 +140,7 @@ sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
  
  
 # additional noise as simulation is perfect
-signal += 1e-1 * np.random.randn(signal.shape[0], 2).view(np.complex128)
+# signal += 1e-1 * np.random.randn(signal.shape[0], 2).view(np.complex128)
 
 
 # %% S6: MR IMAGE RECON of signal ::: #####################################

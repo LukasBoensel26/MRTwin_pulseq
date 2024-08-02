@@ -3,6 +3,7 @@ import MRzeroCore as mr0
 import pypulseq as pp
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 # makes the ex folder your working directory
 import os 
@@ -27,9 +28,11 @@ if 0:
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
-        pos=[[-0.25, -0.25, 0]],
+        pos=[[-0.5, -0.5, 0]],
         PD=[1.0],T1=[3.0],T2=[0.5],T2dash=[30e-3], D=[0.0], B0=0,
-        voxel_size=0.1,
+        # pos=[[-0.25, -0.25, 0], [-0.5, -0.5, 0]],
+        # PD=[1.0,2.0],T1=[3.0,1.5],T2=[0.5,0.8],T2dash=[30e-3, 40e-3], D=[0.0,0.1], B0=0,
+        voxel_size=0.01,
         voxel_shape="box"
     )
 

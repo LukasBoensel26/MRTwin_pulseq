@@ -16,6 +16,7 @@ system = pp.Opts(
     rf_ringdown_time=20e-6, rf_dead_time=100e-6, adc_dead_time=20e-6,
     grad_raster_time=50 * 10e-6
 )
+# grad_raster_time is optional
 
 # %% S2. DEFINE the sequence
 seq = pp.Sequence(system) 
@@ -25,25 +26,131 @@ rf, _, _ = pp.make_sinc_pulse(
     flip_angle=90.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
     apodization=0.5, time_bw_product=4, system=system, return_gz=True
 )
+# apodization to bring the sinc slightly to zero
+# time_bw_product = number of rings of the sinc
+
 # rf1, _, _ = pp.make_block_pulse(
 #     flip_angle=90 * np.pi / 180, duration=1e-3, system=system, return_gz=True
 # )
 
+# --> block pulse if no slice selection
+
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='y', area=80, duration=2e-3, system=system)
-adc = pp.make_adc(num_samples=128, duration=10e-3, phase_offset=0 * np.pi / 180, system=system)
+gx = pp.make_trapezoid(channel='y', area=80, duration=2e-3, system=system) # area = gradient moment
+adc = pp.make_adc(num_samples=128, duration=10e-3, phase_offset=0 * np.pi / 180, system=system) # analog to digital converter
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=2e-3, system=system)
 del15 = pp.make_delay(0.0015)
 
-seq.add_block(del15)
+seq.add_block(del15) # delay
 seq.add_block(rf)
 seq.add_block(gx_pre)
 seq.add_block(adc, gx)
 
 seq.plot()
 # PLOT sequence
-mr0.util.pulseq_plot(seq)
+mr0.util.pulseq_plot(seq) # extension of seq.plot()
 
+
+# %% S2. DEFINE the sequence --> with flat_area gradient
+seq = pp.Sequence(system) 
+
+# Define rf events
+rf, _, _ = pp.make_sinc_pulse(
+    flip_angle=90.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+# apodization to bring the sinc slightly to zero
+# time_bw_product = number of rings of the sinc
+
+# rf1, _, _ = pp.make_block_pulse(
+#     flip_angle=90 * np.pi / 180, duration=1e-3, system=system, return_gz=True
+# )
+
+# --> block pulse if no slice selection
+
+# Define other gradients and ADC events
+gx = pp.make_trapezoid(channel='y', flat_area=80, flat_time=2e-3, system=system) # area = gradient moment
+gx_pre = pp.make_trapezoid(channel='x', flat_area=-gx.area / 2, flat_time=2e-3, system=system)
+adc = pp.make_adc(num_samples=128, duration=2e-3, delay=gx.rise_time, phase_offset=0 * np.pi / 180, system=system) # analog to digital converter
+del15 = pp.make_delay(0.0015)
+
+seq.add_block(del15) # delay
+seq.add_block(rf)
+seq.add_block(gx_pre)
+seq.add_block(adc, gx)
+
+seq.plot()
+# PLOT sequence
+mr0.util.pulseq_plot(seq) # extension of seq.plot()
+
+
+# %% S2.1 DEFINE the sequence of exercise 1
+seq = pp.Sequence(system) 
+
+# Define rf events
+rf1, _, _ = pp.make_sinc_pulse(
+    flip_angle=90.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+rf2, _, _ = pp.make_sinc_pulse(
+    flip_angle=120.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+# apodization to bring the sinc slightly to zero
+# time_bw_product = number of rings of the sinc
+
+# rf1, _, _ = pp.make_block_pulse(
+#     flip_angle=90 * np.pi / 180, duration=1e-3, system=system, return_gz=True
+# )
+
+# --> block pulse if no slice selection
+
+# Define other gradients and ADC events
+del15 = pp.make_delay(0.0015)
+adc = pp.make_adc(num_samples=128, duration=10e-3, phase_offset=0 * np.pi / 180, system=system) # analog to digital converter
+
+gx = pp.make_trapezoid(channel='x', area=-30, duration=2e-3, system=system)
+gy = pp.make_trapezoid(channel='y', area=-gx.area, duration=2e-3, system=system)
+
+seq.add_block(del15) # delay
+seq.add_block(rf1)
+seq.add_block(gx)
+seq.add_block(gy)
+seq.add_block(gy)
+seq.add_block(gx)
+seq.add_block(rf2)
+seq.add_block(gx, gy, adc)
+
+# seq.plot()
+# PLOT sequence
+mr0.util.pulseq_plot(seq) # extension of seq.plot()
+
+
+# %% S2.2 DEFINE the sequence of exercise 2
+seq = pp.Sequence(system) 
+
+# Define rf events
+rf1, _, _ = pp.make_sinc_pulse(
+    flip_angle=90.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+rf2, _, _ = pp.make_sinc_pulse(
+    flip_angle=120.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+
+delay1 = pp.make_delay(1e-1 - pp.calc_rf_center(rf1)[0] - rf.delay) # but which delay
+# delay2 = pp.make_delay(2e-1 - pp.calc_rf_center(rf2)[0] - rf.delay - delay1.delay - pp.calc_duration(rf1)) # but which delay
+
+delay2 = pp.make_delay(2e-1 - 1e-1 - (pp.calc_duration(rf1) - rf1.delay - rf1.ringdown_time) / 2)
+# look at this again
+
+seq.add_block(delay1)
+seq.add_block(rf1)
+seq.add_block(delay2)
+seq.add_block(rf2)
+
+mr0.util.pulseq_plot(seq)
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
 # Check whether the timing of the sequence is correct

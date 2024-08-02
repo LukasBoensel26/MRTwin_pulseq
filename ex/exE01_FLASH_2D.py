@@ -10,7 +10,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
-experiment_id = 'exE01_FLASH_2D_user_tag_fruit#'
+experiment_id = 'exE01_FLASH_2D_fruit_2_64'
 
 
 # %% S1. SETUP sys

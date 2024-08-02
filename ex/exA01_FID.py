@@ -36,11 +36,25 @@ slice_thickness = 8e-3  # slice
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-seq.add_block(pp.make_delay(0.01))
+
+# create events 
+rf, _, _ = pp.make_sinc_pulse(
+    flip_angle=90.0 * np.pi / 180, phase_offset=0.0 * np.pi / 180, duration=2e-3, slice_thickness=8e-3,
+    apodization=0.5, time_bw_product=4, system=system, return_gz=True
+)
+adc = pp.make_adc(num_samples=128, phase_offset=0.0 * np.pi / 180, duration=100e-3, system=system)
+
+# seq.add_block(pp.make_delay(0.00988))
+seq.add_block(pp.make_delay(0.012 - pp.calc_duration(rf)))
+for ii in range(0,10):  
+    seq.add_block(rf)
+    seq.add_block(adc)
+    seq.add_block(pp.make_delay(10-ii))
 
 # Bug: pypulseq 1.3.1post1 write() crashes when there is no gradient event
 seq.add_block(pp.make_trapezoid('x', duration=20e-3, area=10))
 
+# mr0.util.pulseq_plot(seq)
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
 # Check whether the timing of the sequence is correct
@@ -89,9 +103,10 @@ else:
     )
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+obj_p.size=torch.tensor([fov, fov, slice_thickness])
+# obj_p.B0 += 100
 # Convert Phantom into simulation data
-obj_p = obj_p.build()
+obj_p = obj_p.build() # turns object into sparse object for computational efficiency
 
 
 # %% S5:. SIMULATE  the external.seq file and add acquired signal to ADC plot

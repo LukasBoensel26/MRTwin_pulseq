@@ -227,26 +227,26 @@ plt.figure("""mag and phase images""")
 
 plt.subplot(141)
 plt.title('real(img)')  # make subplots with title
-mr0.util.imshow(img[:, :, 0])
-ax = mr0.util.imshow(img[:, :, 0], interpolation='none')
+plt.imshow(img[:, :, 0])
+ax = plt.imshow(img[:, :, 0], interpolation='none')
 fig = plt.gcf()
 fig.colorbar(ax)  # add a colorbar
 
 plt.subplot(142)
 plt.title('imag(img)')  # make subplots with title
-ax = mr0.util.imshow(img[:, :, 1], interpolation='none')
+ax = plt.imshow(img[:, :, 1], interpolation='none')
 fig = plt.gcf()
 fig.colorbar(ax)  # add a colorbar
 
 plt.subplot(143)
 plt.title('abs(img)')  # make subplots with title
-ax = mr0.util.imshow(magimg(img), interpolation='none')
+ax = plt.imshow(magimg(img), interpolation='none')
 fig = plt.gcf()
 fig.colorbar(ax)  # add a colorbar
 
 plt.subplot(144)
 plt.title('phase(img)')  # make subplots with title
-ax = mr0.util.imshow(phaseimg(img), interpolation='none')
+ax = plt.imshow(phaseimg(img), interpolation='none')
 fig = plt.gcf()
 fig.colorbar(ax)  # add a colorbar
 
@@ -284,7 +284,7 @@ param = ['PD', 'T1', 'T2', 'dB0', 'rB1']
 for i in range(5):
     plt.subplot(151 + i)
     plt.title(param[i])
-    ax = mr0.util.imshow(brain_phantom[:, :, i], interpolation='none')
+    ax = plt.imshow(brain_phantom[:, :, i], interpolation='none')
     fig = plt.gcf()
     fig.colorbar(ax)
 fig.set_size_inches(18, 3)
@@ -344,21 +344,21 @@ print(tonumpy(D), type(tonumpy(D)), 'This is again a numpy array')
 
 # %% exercises:  fix the followig codes ( currently they will throw and error)
 if 0:
-    array = np.zeros(5, 5)  # aim: generate 5x5 matrix if zeroes
+    array = np.zeros([5, 5])  # aim: generate 5x5 matrix if zeroes
     print(array, 'shape=', array.shape)
 
-    array = np.linspace(0, 5, 5)  # aim: generate array [0, 1, 2, 3, 4, 5]
+    array = np.linspace(0, 5, 6)  # aim: generate array [0, 1, 2, 3, 4, 5]
     print(array, 'shape=', array.shape)
 
-    array = np.arange(0, 6, 5)  # aim: generate array [0, 1, 2, 3, 4, 5]
+    array = np.arange(0, 6, 1)  # aim: generate array [0, 1, 2, 3, 4, 5]
     print(array, 'shape=', array.shape)
 
     array = np.zeros([5, 5])
-    array[:, 5] = 3.0  # aim: we want the last column of the array all filled with 3.0
+    array[:, 4] = 3.0  # aim: we want the last column of the array all filled with 3.0
     print(array, 'shape=', array.shape)
 
     array = np.zeros([5, 5, 2])
-    array[0, ::2, 0] = np.ones(2)  # aim: fill every second column with vlue given by linspace
+    array[0, ::2, 0] = np.ones(3)  # aim: fill every second column with vlue given by linspace
     print(array, 'shape=', array.shape)
     
 

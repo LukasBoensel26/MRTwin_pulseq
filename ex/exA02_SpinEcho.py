@@ -34,21 +34,48 @@ slice_thickness = 8e-3  # slice
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
+    phase_offset=90 * np.pi / 180, # to make the spin echo positive and real
     flip_angle=90 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
+
+# inversion pulse
+rf2, _, _ = pp.make_sinc_pulse(
+    flip_angle=180 * np.pi / 180, duration=1e-3,
+    slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
+    system=system, return_gz=True
+)
+
 # rf1 = pp.make_block_pulse(flip_angle=90 * np.pi / 180, duration=1e-3, system=system)
 
 # Define other gradients and ADC events
 adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
 
+del1 = 0.012 - pp.calc_duration(rf1)*2 # old delay
+# delay + pp.calc_duration(rf1) = pp.calc_rf_center(rf1)[0] + rf1.ringdown_time + adc.duration/2
+# --> pp.calc_rf_center(rf1)[0] + rf1.ringdown_time + adc.duration/2 = half the pulse + ringdown + half the adc
+# --> this needs to be equal to the spacing between the centers of the two rf pulses
+# --> distance of centers = half the pulse + ringdown + adc0_duration + delay + half the pulse = acd0_duration + pp.calc_duration(rf1) 
+# --> then the echo would be centered
+del1 = pp.calc_rf_center(rf1)[0] + rf1.ringdown_time + pp.calc_duration(adc)/2 - pp.calc_duration(rf1)
+# del1 -= 0.005
+
+adc0 = pp.make_adc(num_samples=Nread, duration=del1, phase_offset=0 * np.pi / 180, delay=0, system=system)
+
+
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-seq.add_block(pp.make_delay(0.011 - rf1.delay))
 seq.add_block(rf1)
+seq.add_block(adc0)
+seq.add_block(rf2)
 seq.add_block(adc)
+
+for i in range(30):
+    seq.add_block(rf2)
+    seq.add_block(adc)
+
 
 # seq.add_block(adc)
 
@@ -94,7 +121,8 @@ else:
         PD=[1.0],
         T1=[3.0],
         T2=[0.5],
-        T2dash=[30e-3],
+        #T2dash=[30e-3],
+        T2dash=[10e-3],
         D=[0.0],
         B0=0,
         voxel_size=0.1,

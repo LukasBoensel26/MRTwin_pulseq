@@ -38,7 +38,7 @@ hint: any textbook, reuse SE or RARE
 hint: https://www.kjronline.org/ViewImage.php?Type=F&aid=549810&id=F6&afn=68_KJR_18_1_113&fn=kjr-18-113-g006_0068KJR
 reuse FLASH
 
-1.8. FISP / PSIF 
+1.8. FISP / PSIF --> extension of SSFP
 hint: https://mriquestions.com/psif-vs-fisp.html
 oder (fat suppression / water fat imaging)
 
@@ -74,7 +74,7 @@ plt.show()
 
 1.16 B0 distortion correction in EPI
 
-1.17 Fastest Flash with trapezoidal gradients and ramp sampling
+1.17 Fastest Flash with extended trapezoidal gradients and ramp sampling
 
 1.18 Slice selection - slice selection profile simulation and meas
 https://github.com/pulseq/MR-Physics-with-Pulseq/tree/main/tutorials/02_rf_pulses

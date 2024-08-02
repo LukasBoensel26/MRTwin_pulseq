@@ -31,7 +31,7 @@ seq = pp.Sequence(system)
 # Define FOV and resolution
 fov = 1000e-3
 Nread = 128
-Nphase = 1
+Nphase = 128
 slice_thickness = 8e-3  # slice
 
 # Define rf events
@@ -47,21 +47,33 @@ rf2, _, _ = pp.make_sinc_pulse(
     system=system, return_gz=True
 )
 
-# Define other gradients and ADC events
-adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
 
+TE_time = 2 * (pp.calc_rf_center(rf1)[0] + pp.calc_duration(rf1) + 0.010 - rf1.delay - rf2.delay)
+
+# Define other gradients and ADC events
+adc_duration = 2 * (TE_time/2 - pp.calc_rf_center(rf2)[0] - rf1.ringdown_time)
+adc = pp.make_adc(num_samples=Nread, duration=adc_duration, phase_offset=0 * np.pi / 180, delay=0, system=system)
+
+# gradients
+gflag = 1
+gx = pp.make_trapezoid(channel='x', flat_area=Nread*gflag, flat_time=adc_duration, system=system)
+gx_pre = pp.make_trapezoid(channel='x', area=gx.area / 2, duration=1.5e-3, system=system)
+
+gx_spoil = pp.make_trapezoid(channel='x', flat_area=30, flat_time=0.5e-3, system=system) # to deal with field inhomogeneities in the B1+ field
+# --> this inhomogenities come with non perfect 180 degree inversion pulses
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-seq.add_block(rf1)
-seq.add_block(pp.make_delay(0.010 - rf1.delay - rf2.delay))
-seq.add_block(rf2)
-seq.add_block(adc)
-
-# Bug: pypulseq 1.3.1post1 write() crashes when there is no gradient event
-seq.add_block(pp.make_trapezoid('x', duration=20e-3, area=10))
-
+for ii in range(-Nphase // 2, Nphase // 2):
+    seq.add_block(pp.make_delay(5))
+    seq.add_block(rf1)
+    gp = pp.make_trapezoid(channel='y', area=-ii, duration=1.5e-3, system=system)
+    seq.add_block(pp.make_delay(0.010 - rf1.delay - rf2.delay), gx_pre, gp)
+    seq.add_block(gx_spoil)
+    seq.add_block(rf2)
+    seq.add_block(gx_spoil)
+    seq.add_block(adc, gx)
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
 # Check whether the timing of the sequence is correct
@@ -85,7 +97,7 @@ seq.write('out/' + experiment_id + '.seq')
 # %% S4: SETUP SPIN SYSTEM/object on which we can run the MR sequence external.seq from above
 sz = [64, 64]
 
-if 0:
+if 1:
     # (i) load a phantom object from file
     # obj_p = mr0.VoxelGridPhantom.load_mat('../data/phantom2D.mat')
     obj_p = mr0.VoxelGridPhantom.load_mat('../data/numerical_brain_cropped.mat')
@@ -95,6 +107,8 @@ if 0:
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
     obj_p.D *= 0 
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
+    
+    # obj_p.B1[:] = 1 # remove B1 inhomogeneity
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
@@ -120,7 +134,7 @@ obj_p = obj_p.build()
 # Read in the sequence 
 seq0 = mr0.Sequence.import_file("out/external.seq")
  
-# #seq0.plot_kspace_trajectory()
+seq0.plot_kspace_trajectory()
 # Simulate the sequence
 graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
 signal = mr0.execute_graph(graph, seq0, obj_p)
@@ -130,4 +144,55 @@ plt.close(11);plt.close(12)
 sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
  
  
+# %% S6: MR IMAGE RECON of signal ::: #####################################
+fig = plt.figure()  # fig.clf()
+plt.subplot(411)
+plt.title('ADC signal')
+spectrum = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace = spectrum
+plt.plot(torch.real(signal), label='real')
+plt.plot(torch.imag(signal), label='imag')
+
+
+# this adds ticks at the correct position szread
+major_ticks = np.arange(0, Nphase * Nread, Nread)
+ax = plt.gca()
+ax.set_xticks(major_ticks)
+ax.grid()
+
+space = torch.zeros_like(spectrum)
+
+# fftshift
+spectrum = torch.fft.fftshift(spectrum, 0)
+spectrum = torch.fft.fftshift(spectrum, 1)
+# FFT
+space = torch.fft.fft2(spectrum)
+# fftshift
+space = torch.fft.fftshift(space, 0)
+space = torch.fft.fftshift(space, 1)
+
+import util 
+plt.subplot(345)
+plt.title('k-space')
+mr0.util.imshow(np.abs(kspace.numpy()))
+plt.subplot(349)
+plt.title('k-space_r')
+mr0.util.imshow(np.log(np.abs(kspace.numpy())))
+
+plt.subplot(346)
+plt.title('FFT-magnitude')
+mr0.util.imshow(np.abs(space.numpy()))
+plt.colorbar()
+plt.subplot(3, 4, 10)
+plt.title('FFT-phase')
+mr0.util.imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
+plt.colorbar()
+
+# % compare with original phantom obj_p.PD
+# plt.subplot(348)
+# plt.title('phantom PD')
+# mr0.util.imshow(obj_p.recover().PD.squeeze())
+# plt.subplot(3, 4, 12)
+# plt.title('phantom B0')
+# mr0.util.imshow(obj_p.recover().B1.squeeze())
  

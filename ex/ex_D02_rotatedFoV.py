@@ -10,7 +10,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
-experiment_id = 'exB08_FLASH_2D_MP'
+experiment_id = 'exD01_bSSFP_2D'
 
 
 # %% S1. SETUP sys
@@ -27,73 +27,63 @@ system = pp.Opts(
 seq = pp.Sequence(system) 
 
 # Define FOV and resolution
-fov = 1000e-3
+fov = 220e-3
 slice_thickness = 8e-3
-sz = (64, 64)   # spin system size / resolution
+sz = (32, 32)   # spin system size / resolution
 Nread = 64    # frequency encoding steps/samples
 Nphase = 64    # phase encoding steps/samples
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=5 * np.pi / 180, duration=1e-3,
+    flip_angle=15 * np.pi / 180, duration=1e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
 # rf1 = pp.make_block_pulse(flip_angle=90 * np.pi / 180, duration=1e-3, system=system)
+rf0, _, _ = pp.make_sinc_pulse(
+    flip_angle=15 / 2 * np.pi / 180, duration=1e-3,
+    slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
+    system=system, return_gz=True
+)
+
+rotation_angle_fov = 10 * np.pi / 180
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=10e-3, system=system)
-adc = pp.make_adc(num_samples=Nread, duration=10e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
-gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=5e-3, system=system)
-gx_spoil = pp.make_trapezoid(channel='x', area=1.5 * gx.area, duration=2e-3, system=system)
+g_read_x = pp.make_trapezoid(channel='x', flat_area=(Nread/fov)*np.cos(rotation_angle_fov), flat_time=1e-3, system=system)
+g_read_y = pp.make_trapezoid(channel='y', flat_area=(Nread/fov)*np.sin(rotation_angle_fov), flat_time=1e-3, system=system)
+adc = pp.make_adc(num_samples=Nread, duration=1e-3, phase_offset=0 * np.pi / 180, delay=g_read_x.rise_time, system=system)
+g_read_pre_x = pp.make_trapezoid(channel='x', area=-g_read_x.area / 2, duration=1e-3, system=system)
+g_read_pre_y = pp.make_trapezoid(channel='y', area=-g_read_y.area / 2, duration=1e-3, system=system)
 
-rf_phase = 0
-rf_inc = 0
-rf_spoiling_inc = 117
-
-phase_enc_gradmoms = torch.arange(0, Nphase, 1) - Nphase // 2
-
-
-permvec = np.zeros((Nphase,), dtype=int)
-permvec[0] = 0
-for i in range(1, int(Nphase // 2 + 1)):
-    permvec[i * 2 - 1] = -i
-    if i < Nphase / 2:
-        permvec[i * 2] = i
-permvec += Nphase // 2
-phase_enc_gradmoms = phase_enc_gradmoms[permvec]
+rf_phase = 180
+rf_inc = 180
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
+sdel = 1e-0
 
-rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
+seq.add_block(rf0)
+seq.add_block(pp.make_delay(3e-3))
 
-# add FLAIR preparation here: fluid attenuated inversion recovery
-delay_for_fluid = np.log(2)*4.5
-seq.add_block(rf_prep)
-seq.add_block(gx_spoil)
-seq.add_block(pp.make_delay(3))
-# add DIR preparation here: double inversion recovery
-seq.add_block(rf_prep)
-seq.add_block(gx_spoil)
-seq.add_block(pp.make_delay(0.5))
-
-for ii in range(0, Nphase):  # e.g. -64:63
+for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
 
     rf1.phase_offset = rf_phase / 180 * np.pi   # set current rf phase
 
-    adc.phase_offset = rf1.phase_offset
-    rf_inc = divmod(rf_inc + rf_spoiling_inc, 360.0)[1]   # increase increment
+    adc.phase_offset = rf_phase / 180 * np.pi  # follow with ADC
     # increment additional pahse
     rf_phase = divmod(rf_phase + rf_inc, 360.0)[1]
 
     seq.add_block(rf1)
-    gp = pp.make_trapezoid(channel='y', area=phase_enc_gradmoms[ii], duration=5e-3, system=system)
-    seq.add_block(gx_pre, gp)
-    seq.add_block(adc, gx)
-    gp = pp.make_trapezoid(channel='y', area=-phase_enc_gradmoms[ii], duration=5e-3, system=system)
-    seq.add_block(gx_spoil, gp)
+    g_phase_x = pp.make_trapezoid(channel='x', area=(ii/fov)*np.cos(rotation_angle_fov + np.pi/2), duration=1e-3, system=system)
+    g_phase_y = pp.make_trapezoid(channel='y', area=(ii/fov)*np.sin(rotation_angle_fov + np.pi/2), duration=1e-3, system=system)
+    seq.add_block(g_read_pre_x, g_read_pre_y)
+    seq.add_block(g_phase_x, g_phase_y)
+    seq.add_block(adc, g_read_x, g_read_y)
+    g_phase_x = pp.make_trapezoid(channel='x', area=-(ii/fov)*np.cos(rotation_angle_fov + np.pi/2), duration=1e-3, system=system)
+    g_phase_y = pp.make_trapezoid(channel='y', area=-(ii/fov)*np.sin(rotation_angle_fov + np.pi/2), duration=1e-3, system=system)
+    seq.add_block(g_read_pre_x, g_read_pre_y)
+    seq.add_block(g_phase_x, g_phase_y)
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -134,8 +124,7 @@ if 1:
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
-        pos=[[-0.4, -0.4, 0], [-0.4, -0.2, 0],
-             [-0.3, -0.2, 0], [-0.2, -0.2, 0], [-0.1, -0.2, 0]],
+        pos=[[-0.4, -0.4, 0], [-0.4, -0.2, 0], [-0.3, -0.2, 0], [-0.2, -0.2, 0], [-0.1, -0.2, 0]],
         PD=[1.0, 1.0, 0.5, 0.5, 0.5],
         T1=1.0,
         T2=0.1,
@@ -150,7 +139,7 @@ else:
     B0 = torch.zeros_like(PD)
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+# obj_p.size=torch.tensor([fov, fov, slice_thickness]) # scales the object to the FoV
 # Convert Phantom into simulation data
 obj_p = obj_p.build()
 
@@ -176,12 +165,10 @@ sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
 fig = plt.figure()  # fig.clf()
 plt.subplot(411)
 plt.title('ADC signal')
-kspace_adc = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace = torch.reshape((signal), (Nphase, Nread)).clone().t()
 plt.plot(torch.real(signal), label='real')
 plt.plot(torch.imag(signal), label='imag')
 
-ipermvec = np.arange(len(permvec))[np.argsort(permvec)]
-kspace = kspace_adc[:, ipermvec]
 
 # this adds ticks at the correct position szread
 major_ticks = np.arange(0, Nphase * Nread, Nread)
@@ -199,7 +186,7 @@ space = torch.fft.fftshift(space)
 
 plt.subplot(345)
 plt.title('k-space')
-mr0.util.imshow(np.log(np.abs(kspace_adc.numpy())))
+mr0.util.imshow(np.abs(kspace.numpy()))
 plt.subplot(349)
 plt.title('k-space_r')
 mr0.util.imshow(np.log(np.abs(kspace.numpy())))
@@ -220,3 +207,4 @@ mr0.util.imshow(obj_p.recover().PD.squeeze())
 plt.subplot(3, 4, 12)
 plt.title('phantom B0')
 mr0.util.imshow(obj_p.recover().B0.squeeze())
+

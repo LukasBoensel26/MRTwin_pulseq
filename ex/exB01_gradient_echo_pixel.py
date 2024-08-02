@@ -93,15 +93,18 @@ if 0:
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     pos_x = (30 / 64) - 0.5
-    pos_y = (60 / 64) - 0.5
+    pos_y = (32 / 64) - 0.5
+    pos_x_2 = (60 / 64) - 0.5
+    pos_y_2 = (32 / 64) - 0.5
+
     obj_p = mr0.CustomVoxelPhantom(
-        pos=[[pos_x, pos_y, 0]],
+        pos=[[pos_x, pos_y, 0],[pos_x_2, pos_y_2, 0]],
         PD=[1.0],
         T1=[1.0],
         T2=[0.1],
         T2dash=[30e-3],
         D=[0.0],
-        voxel_size=1 / 64,
+        voxel_size=0.01,
         voxel_shape="box"
     )
 

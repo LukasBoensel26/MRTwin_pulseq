@@ -35,12 +35,12 @@ Nphase = 64    # phase encoding steps/samples
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=90 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=1e-3,
+    flip_angle=90 * np.pi / 180, phase_offset=90 * np.pi / 180, duration=0.5e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
 rf2, _, _ = pp.make_sinc_pulse(
-    flip_angle=180 * np.pi / 180, duration=1e-3,
+    flip_angle=180 * np.pi / 180, duration=0.5e-3,
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
@@ -48,24 +48,46 @@ rf2, _, _ = pp.make_sinc_pulse(
 rf_prep = pp.make_block_pulse(flip_angle=180 * np.pi / 180, duration=1e-3, system=system)
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=4e-3, system=system)
-adc = pp.make_adc(num_samples=Nread, duration=4e-3, phase_offset=90 * np.pi / 180, delay=gx.rise_time, system=system)
-gx_pre = pp.make_trapezoid(channel='x', area=+gx.area / 2, duration=5e-3, system=system)
+adc_duration = 1e-3
+gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=adc_duration, system=system)
+adc = pp.make_adc(num_samples=Nread, duration=adc_duration, phase_offset=90 * np.pi / 180, delay=gx.rise_time, system=system)
+gx_pre = pp.make_trapezoid(channel='x', area=+gx.area, duration=0.5e-3, system=system)
+gx_spoil = pp.make_trapezoid(channel='x', area=+gx.area / 2, duration=0.5e-3, system=system)
+
+# central reordering
+phase_enc__gradmoms = torch.arange(0, Nphase, 1) - Nphase // 2
+
+permvec = np.zeros((Nphase,), dtype=int)
+permvec[0] = 0
+for i in range(1, int(Nphase // 2 + 1)):
+    permvec[i * 2 - 1] = -i
+    if i < Nphase / 2:
+        permvec[i * 2] = i
+permvec += Nphase // 2
+phase_enc__gradmoms = phase_enc__gradmoms[permvec]
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-    gp = pp.make_trapezoid(channel='y', area=-ii, duration=5e-3, system=system)
 
-    seq.add_block(pp.make_delay(5))
+# run prep pulse for FLAIR
+seq.add_block(rf_prep)
+seq.add_block(pp.make_delay(2.7)) # for water suppression
 
-    seq.add_block(rf1)
-    seq.add_block(gx_pre, gp, pp.make_delay(0.01))
+seq.add_block(rf1)
+seq.add_block(pp.make_delay((adc_duration + pp.calc_duration(rf2))/2 - pp.calc_duration(rf2)), gx_pre)
+
+for ii in range(-Nphase // 2, Nphase // 2): # in range(0, Nphase): # e.g. -64:63
+    gp = pp.make_trapezoid(channel='y', area=ii, duration=0.5e-3, system=system)
+    gp_inv = pp.make_trapezoid(channel='y', area=-ii, duration=0.5e-3, system=system)
+    
+    # with central reordering
+    # gp = pp.make_trapezoid(channel='y', area=phase_enc__gradmoms[ii], duration=0.5e-3, system=system)
+    # gp_inv = pp.make_trapezoid(channel='y', area=-phase_enc__gradmoms[ii], duration=0.5e-3, system=system)
     seq.add_block(rf2)
-    seq.add_block(pp.make_delay(0.005))
+    seq.add_block(gp, gx_spoil)
     seq.add_block(adc, gx)
-
+    seq.add_block(gp_inv, gx_spoil)
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
 # Check whether the timing of the sequence is correct
@@ -102,6 +124,8 @@ if 1:
     # Store PD for comparison
     PD = obj_p.PD.squeeze()
     B0 = obj_p.B0.squeeze()
+    
+    # obj_p.B1[:] = 1 # remove B1 inhomogeneity
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
@@ -130,7 +154,7 @@ obj_p = obj_p.build()
 # Read in the sequence 
 seq0 = mr0.Sequence.import_file("out/external.seq")
  
-#seq0.plot_kspace_trajectory()
+seq0.plot_kspace_trajectory()
 # Simulate the sequence
 graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
 signal = mr0.execute_graph(graph, seq0, obj_p)
@@ -149,10 +173,14 @@ signal += 1e-4 * np.random.randn(signal.shape[0], 2).view(np.complex128)
 fig = plt.figure()  # fig.clf()
 plt.subplot(411)
 plt.title('ADC signal')
-kspace = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace_adc = torch.reshape((signal), (Nphase, Nread)).clone().t()
 plt.plot(torch.real(signal), label='real')
 plt.plot(torch.imag(signal), label='imag')
 
+# invert k-space lines that come due to central reordering
+# ipermvec = np.arange(len(permvec))[np.argsort(permvec)]
+# kspace = kspace_adc[:, ipermvec]
+kspace = kspace_adc
 
 # this adds ticks at the correct position szread
 major_ticks = np.arange(0, Nphase * Nread, Nread)

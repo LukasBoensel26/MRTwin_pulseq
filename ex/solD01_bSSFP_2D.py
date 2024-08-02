@@ -27,7 +27,7 @@ system = pp.Opts(
 seq = pp.Sequence(system) 
 
 # Define FOV and resolution
-fov = 1000e-3
+fov = 220e-3
 slice_thickness = 8e-3
 sz = (32, 32)   # spin system size / resolution
 Nread = 64    # frequency encoding steps/samples
@@ -47,7 +47,7 @@ rf0, _, _ = pp.make_sinc_pulse(
 )
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=1e-3, system=system)
+gx = pp.make_trapezoid(channel='x', flat_area=Nread/fov, flat_time=1e-3, system=system)
 adc = pp.make_adc(num_samples=Nread, duration=1e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
 
@@ -71,10 +71,10 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     rf_phase = divmod(rf_phase + rf_inc, 360.0)[1]
 
     seq.add_block(rf1)
-    gp = pp.make_trapezoid(channel='y', area=ii, duration=1e-3, system=system)
+    gp = pp.make_trapezoid(channel='y', area=ii/fov, duration=1e-3, system=system)
     seq.add_block(gx_pre, gp)
     seq.add_block(adc, gx)
-    gp = pp.make_trapezoid(channel='y', area=-ii, duration=1e-3, system=system)
+    gp = pp.make_trapezoid(channel='y', area=-ii/fov, duration=1e-3, system=system)
     seq.add_block(gx_pre, gp)
 
 
@@ -131,7 +131,7 @@ else:
     B0 = torch.zeros_like(PD)
 
 obj_p.plot()
-obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
+# obj_p.size=torch.tensor([fov, fov, slice_thickness]) # scales the object to the FoV
 # Convert Phantom into simulation data
 obj_p = obj_p.build()
 

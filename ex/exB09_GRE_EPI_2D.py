@@ -42,23 +42,30 @@ rf1, _, _ = pp.make_sinc_pulse(
 
 
 # Define other gradients and ADC events
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=10e-3, system=system)
-adc = pp.make_adc(num_samples=Nread, duration=10e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
-gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=5e-3, system=system)
+
+# additional to get rid of the k-space lines shifts (as ADC not perfectly fitted to the gradients)
+# dwell = 1e-5
+# adc_duration = dwell*Nread
+
+gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=0.2e-3, system=system)
+gx_ = pp.make_trapezoid(channel='x', flat_area=-Nread, flat_time=0.2e-3, system=system)
+adc = pp.make_adc(num_samples=Nread, duration=0.2e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
+gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
+gy_pre = pp.make_trapezoid(channel='y', area=-gx.area / 2, duration=1e-3, system=system)
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
-for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-    seq.add_block(pp.make_delay(1))
 
-    seq.add_block(rf1)  # add rf1 with 90° flip_angle
+seq.add_block(rf1)  # add rf1 with 90° flip_angle
+seq.add_block(gx_pre, gy_pre)
 
-    gp = pp.make_trapezoid(channel='y', area=ii, duration=5e-3, system=system)
-    seq.add_block(gx_pre, gp)
+for ii in range(0, Nphase // 2):  # e.g. -64:63
+    gp = pp.make_trapezoid(channel='y', area=1, duration=0.03e-3, system=system)
     seq.add_block(adc, gx)
-    if ii < Nphase - 1:
-        seq.add_block(pp.make_delay(10))
+    seq.add_block(gp)
+    seq.add_block(adc, gx_)
+    seq.add_block(gp)
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence as .seq
@@ -126,7 +133,7 @@ obj_p = obj_p.build()
 # Read in the sequence 
 seq0 = mr0.Sequence.import_file("out/external.seq")
  
-#seq0.plot_kspace_trajectory()
+seq0.plot_kspace_trajectory()
 # Simulate the sequence
 graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
 signal = mr0.execute_graph(graph, seq0, obj_p)
@@ -153,6 +160,13 @@ plt.xticks(np.arange(0, Nphase * Nread, Nread))
 plt.grid()
 
 kspace = torch.reshape((signal), (Nphase, Nread)).clone().t()
+
+# kspace[1::, ::2] = kspace[0::-1, ::2] # we need to revert the k-space line shifts here
+
+kspace = kspace.numpy()
+kspace[:, ::2] = kspace[::-1, ::2]
+kspace = torch.from_numpy(kspace)
+
 spectrum = torch.fft.fftshift(kspace)
 # FFT
 space = torch.fft.fft2(spectrum)

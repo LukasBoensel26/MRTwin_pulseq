@@ -51,12 +51,27 @@ rf_phase = 0
 rf_inc = 0
 rf_spoiling_inc = 117
 
+phase_enc__gradmoms = torch.arange(0, Nphase, 1) - Nphase // 2
+
+# permvec = np.zeros((Nphase,), dtype=int)
+# permvec[0] = 0
+# for i in range(1, int(Nphase // 2 + 1)):
+#     permvec[i * 2 - 1] = -i
+#     if i < Nphase / 2:
+#         permvec[i * 2] = i
+# permvec += Nphase // 2
+# phase_enc__gradmoms = phase_enc__gradmoms[permvec]
+
+# random permutation
+permvec = np.random.permutation(Nphase)
+phase_enc__gradmoms = phase_enc__gradmoms[permvec]
+
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 
-for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-
+for ii in range(0, Nphase):  # e.g. -64:63   
+    # this is the RF spoiling part
     rf1.phase_offset = rf_phase / 180 * np.pi   # set current rf phase
 
     adc.phase_offset = rf_phase / 180 * np.pi  # follow with ADC
@@ -65,10 +80,10 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     rf_phase = divmod(rf_phase + rf_inc, 360.0)[1]
 
     seq.add_block(rf1)
-    gp = pp.make_trapezoid(channel='y', area=ii, duration=5e-3, system=system)
+    gp = pp.make_trapezoid(channel='y', area=phase_enc__gradmoms[ii], duration=5e-3, system=system)
     seq.add_block(gx_pre, gp)
     seq.add_block(adc, gx)
-    gp = pp.make_trapezoid(channel='y', area=-ii, duration=5e-3, system=system)
+    gp = pp.make_trapezoid(channel='y', area=-phase_enc__gradmoms[ii], duration=5e-3, system=system)
     seq.add_block(gx_spoil, gp)
     if ii < Nphase - 1:
         seq.add_block(pp.make_delay(0.001))
@@ -156,10 +171,12 @@ signal += 1e-4 * np.random.randn(signal.shape[0], 2).view(np.complex128)
 fig = plt.figure()  # fig.clf()
 plt.subplot(411)
 plt.title('ADC signal')
-kspace = torch.reshape((signal), (Nphase, Nread)).clone().t()
+kspace_adc = torch.reshape((signal), (Nphase, Nread)).clone().t()
 plt.plot(torch.real(signal), label='real')
 plt.plot(torch.imag(signal), label='imag')
 
+ipermvec = np.arange(len(permvec))[np.argsort(permvec)]
+kspace = kspace_adc[:, ipermvec]
 
 # this adds ticks at the correct position szread
 major_ticks = np.arange(0, Nphase * Nread, Nread)

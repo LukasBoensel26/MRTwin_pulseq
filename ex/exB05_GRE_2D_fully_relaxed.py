@@ -55,7 +55,7 @@ gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=5e-3, system
 # CONSTRUCT SEQUENCE
 # ======
 for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
-    seq.add_block(pp.make_delay(1))
+    # seq.add_block(pp.make_delay(1))
 
     if np.abs(ii) > 5:  # tutorial1:   # (2)   if np.mod(ii,2)==1:    # (3) np.abs(ii)==30:   with high FA
         seq.add_block(rf0)  # add rf0 with zero flip_angle
@@ -65,8 +65,8 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     gp = pp.make_trapezoid(channel='y', area=ii, duration=5e-3, system=system)
     seq.add_block(gx_pre, gp)
     seq.add_block(adc, gx)
-    if ii < Nphase - 1:
-        seq.add_block(pp.make_delay(10))
+    # if ii < Nphase - 1:
+    #     seq.add_block(pp.make_delay(10))
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -91,7 +91,7 @@ seq.write('out/' + experiment_id + '.seq')
 # %% S4: SETUP SPIN SYSTEM/object on which we can run the MR sequence external.seq from above
 sz = [64, 64]
 
-if 1:
+if 0:
     # (i) load a phantom object from file
     # obj_p = mr0.VoxelGridPhantom.load_mat('../data/phantom2D.mat')
     obj_p = mr0.VoxelGridPhantom.load_mat('../data/numerical_brain_cropped.mat')
@@ -168,7 +168,7 @@ space = torch.fft.fft2(spectrum)
 space = torch.fft.fftshift(space, 0)
 space = torch.fft.fftshift(space, 1)
 
-    
+import util 
 plt.subplot(345)
 plt.title('k-space')
 mr0.util.imshow(np.abs(kspace.numpy()))

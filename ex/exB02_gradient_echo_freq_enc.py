@@ -46,6 +46,9 @@ gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=20e-3, system=sys
 adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi/180, delay=gx.rise_time, system=system)
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
 
+# gy = pp.make_trapezoid(channel='y', flat_area=Nread, flat_time=20e-3, system=system)
+# gy_pre = pp.make_trapezoid(channel='y', area=-gx.area / 2, duration=1e-3, system=system)
+
 # ======
 # CONSTRUCT SEQUENCE
 # ======
@@ -95,13 +98,29 @@ if 0:
     PD = obj_p.PD.squeeze()
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
+    # obj_p = mr0.CustomVoxelPhantom(
+    #     pos=[[-0.25, -0.25, 0]],
+    #     PD=[1.0],
+    #     T1=[1.0],
+    #     T2=[0.1],
+    #     T2dash=[0.1],
+    #     D=[0.0],
+    #     voxel_size=0.1,
+    #     voxel_shape="box"
+    # )
+    # # Store PD for comparison
+    # PD = obj_p.generate_PD_map()
+    
+    # # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
-        pos=[[-0.25, -0.25, 0]],
-        PD=[1.0],
-        T1=[1.0],
-        T2=[0.1],
-        T2dash=[0.1],
-        D=[0.0],
+        pos=[[-0.4, -0.4, 0], [-0.4, -0.2, 0],
+              [-0.3, -0.2, 0], [-0.2, -0.2, 0], [-0.1, -0.2, 0]],
+        PD=[1.0, 1.0, 0.5, 0.5, 0.5],
+        T1=[1.0, 0.5, 0.5, 0.5, 2],
+        T2=0.1,
+        T2dash=0.1,
+        D=0.0,
+        B0=0,
         voxel_size=0.1,
         voxel_shape="box"
     )
@@ -146,16 +165,22 @@ ax = plt.gca()
 ax.set_xticks(major_ticks)
 ax.grid()
 
-space = torch.zeros_like(spectrum)
+space = torch.zeros_like(spectrum) 
+
+# IMPORTANT: the signal is given in the time domain but thus it is also given in the k-domain as with time t the value for k changes
+# --> so we get a signal in the k-frequency domain
+# --> the Fourier transform then delivers the signal in the position domain
 
 # fftshift
-
+spectrum = torch.fft.fftshift(spectrum, axis=0) # we need this shift as FFT expects the low frequencies at the boundaries
+# --> the fftshift performs a roll operation to the right
+# --> everything that is shifted over the right boundary comes again from the left side
 
 # FFT
+space = torch.fft.fft(spectrum,axis=0)
 
-
-# fftshift
-
+# fftshift --> to revert the previously made shift
+space = torch.fft.fftshift(space, axis=0)
 
 plt.subplot(312)
 plt.title('FFT')

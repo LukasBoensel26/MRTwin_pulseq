@@ -29,13 +29,13 @@ seq = pp.Sequence(system)
 # Define FOV and resolution
 fov = 1000e-3
 Nread = 128
-Nphase = 128
+Nphase = 128 # number of phase encoding steps --> k-space lines in phase-direction
 
 slice_thickness = 8e-3  # slice
 
 # Define rf events
 rf1, _, _ = pp.make_sinc_pulse(
-    flip_angle=5 * np.pi / 180, duration=1e-3,
+    flip_angle=5 * np.pi / 180, duration=1e-3, # I guess the smaller flip angle not (90 degree) is not on purpose
     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
     system=system, return_gz=True
 )
@@ -43,16 +43,17 @@ rf1, _, _ = pp.make_sinc_pulse(
 
 # Define other gradients and ADC events
 adc = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=0 * np.pi / 180, system=system)
-gp = pp.make_trapezoid(channel='y', area=0, duration=20e-3, system=system)
+gp = pp.make_trapezoid(channel='y', area=Nphase, duration=20e-3, system=system)
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 
 for ii in range(-Nphase // 2, Nphase // 2):
-    seq.add_block(pp.make_delay(1))
+    seq.add_block(pp.make_delay(5))
     seq.add_block(rf1)
-
+    gp = pp.make_trapezoid(channel='y', area=ii, duration=20e-3, system=system)
+    seq.add_block(gp)
     seq.add_block(adc)
 
 # Bug: pypulseq 1.3.1post1 write() crashes when there is no gradient event
@@ -149,13 +150,13 @@ ax.grid()
 space = torch.zeros_like(spectrum)
 
 # fftshift
-
+spectrum = torch.fft.fftshift(spectrum, axis=1) # change axis to y-axis
 
 # FFT
-
+space = torch.fft.fft(spectrum,axis=1)
 
 # fftshift
-
+space = torch.fft.fftshift(space, axis=1)
 
 plt.subplot(312)
 plt.title('FFT')

@@ -41,21 +41,66 @@ rf1, _, _ = pp.make_sinc_pulse(
 # rf1 = pp.make_block_pulse(flip_angle=90 * np.pi / 180, duration=1e-3, system=system)
 
 # Define other gradients and ADC events
-adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
-gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=2e-3, system=system)
+adc1 = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
+adc2 = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
+gx_pre = pp.make_trapezoid(channel='x', flat_area=-Nread, flat_time=1e-3, system=system)
+gx = pp.make_trapezoid(channel='x', flat_area=2*Nread, flat_time=2e-3, system=system)
+gx_ = pp.make_trapezoid(channel='x', flat_area=-2*Nread, flat_time=2e-3, system=system)
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 seq.add_block(pp.make_delay(0.011 - rf1.delay))
 seq.add_block(rf1)
-seq.add_block(adc)
+#seq.add_block(adc1, gx)
+seq.add_block(gx_pre) # pre stands for prewinder
+for i in range(10):
+    seq.add_block(adc2, gx)
+    seq.add_block(adc2, gx_)
 
 # seq.add_block(adc)
 
 # Bug: pypulseq 1.3.1post1 write() crashes when there is no gradient event
 seq.add_block(pp.make_trapezoid('x', duration=20e-3, area=10))
 
+
+# =============================================================================
+# # %% S2. DEFINE the sequence of exercise 5.7
+# seq = pp.Sequence(system) 
+# 
+# # Define FOV and resolution
+# fov = 1000e-3
+# Nread = 128
+# Nphase = 1
+# slice_thickness = 8e-3  # slice
+# 
+# # Define rf events
+# rf1, _, _ = pp.make_sinc_pulse(
+#     phase_offset=90 * np.pi / 180, # to make the spin echo positive and real
+#     flip_angle=90 * np.pi / 180, duration=1e-3,
+#     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
+#     system=system, return_gz=True
+# )
+# 
+# # inversion pulse
+# rf2, _, _ = pp.make_sinc_pulse(
+#     flip_angle=180 * np.pi / 180, duration=1e-3,
+#     slice_thickness=slice_thickness, apodization=0.5, time_bw_product=4,
+#     system=system, return_gz=True
+# )
+# 
+# adc = pp.make_adc(num_samples=Nread, duration=20e-3, phase_offset=0 * np.pi / 180, delay=0, system=system)
+# delay = pp.make_delay(pp.calc_rf_center(rf1)[0] + rf1.ringdown_time + pp.calc_duration(adc)/2 - pp.calc_duration(rf1))
+# 
+# # add buildung blocks
+# seq.add_block(rf1)
+# seq.add_block(delay)
+# seq.add_block(rf2)
+# seq.add_block(adc)
+# 
+# # Bug: pypulseq 1.3.1post1 write() crashes when there is no gradient event
+# seq.add_block(pp.make_trapezoid('x', duration=20e-3, area=10))
+# =============================================================================
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
 # Check whether the timing of the sequence is correct
@@ -102,7 +147,7 @@ else:
         voxel_shape="box"
     )
 
-obj_p.plot()
+# obj_p.plot()
 obj_p.size=torch.tensor([fov, fov, slice_thickness]) 
 # Convert Phantom into simulation data
 obj_p = obj_p.build()

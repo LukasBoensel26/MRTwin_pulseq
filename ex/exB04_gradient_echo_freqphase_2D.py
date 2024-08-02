@@ -45,6 +45,8 @@ gx = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=2e-3, system=syst
 adc = pp.make_adc(num_samples=Nread, duration=2e-3, phase_offset=0 * np.pi / 180, delay=gx.rise_time, system=system)
 gx_pre = pp.make_trapezoid(channel='x', area=-gx.area / 2, duration=1e-3, system=system)
 
+# --> changing the gradients we can zoom in and out of our image
+
 # ======
 # CONSTRUCT SEQUENCE
 # ======
@@ -54,9 +56,10 @@ for ii in range(-Nphase // 2, Nphase // 2):  # e.g. -64:63
     seq.add_block(rf1)
     gp = pp.make_trapezoid(channel='y', area=ii, duration=20e-3, system=system)
     seq.add_block(gp)
-    seq.add_block(adc)
+    seq.add_block(gx_pre)
+    seq.add_block(adc, gx)
     if ii < Nphase - 1:
-        seq.add_block(pp.make_delay(10))
+        seq.add_block(pp.make_delay(10)) # in order to let the signal fully relax
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -92,7 +95,7 @@ if 0:
     obj_p.D *= 0 
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
     # Store PD for comparison
-    PD = obj_p.PD.squeeze()
+    PD = obj_p.PD
 else:
     # or (ii) set phantom  manually to a pixel phantom. Coordinate system is [-0.5, 0.5]^3
     obj_p = mr0.CustomVoxelPhantom(
@@ -149,18 +152,20 @@ ax.grid()
 
 space = torch.zeros_like(spectrum)
 
+# spectrum is reshaped to 64 to 64
 
-# fftshift
+# fftshift --> first in one dimension then in the other one
+# spectrum = torch.fft.fftshift(spectrum, axis=0)
+# space = torch.fft.fft(spectrum, axis=0)
+# space = torch.fft.fftshift(space, axis=0)
+
+# space = torch.fft.fftshift(space, axis=1)
+# space = torch.fft.fft(space, axis=1)
+# space = torch.fft.fftshift(space, axis=1)
+
+# alternative with 2D Fourier transform
 spectrum = torch.fft.fftshift(spectrum)
-
-for ii in range(0, Nread):
-    space[ii, :] = torch.fft.fft(spectrum[ii, :])      # phase encoding FFT
-
-# add freq encoding FFT
-
-# FFT
-
-# fftshift
+space = torch.fft.fft2(spectrum)
 space = torch.fft.fftshift(space)
 
 plt.subplot(323)
@@ -189,7 +194,7 @@ plt.show()
 
 plt.subplot(222)
 plt.title('magnitude')
-mr0.util.imshow(np.abs(space.numpy()))
+mr0.util.imshow(np.abs(space.numpy()), cmap="gray")
 plt.subplot(224)
 plt.title('phase')
 mr0.util.imshow(np.angle(space.numpy()))
