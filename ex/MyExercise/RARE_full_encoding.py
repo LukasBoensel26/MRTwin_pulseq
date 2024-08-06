@@ -10,7 +10,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
-experiment_id = 'SpinEcho'
+experiment_id = 'RARE'
 
 
 # %% S1. SETUP sys
@@ -28,8 +28,8 @@ seq = pp.Sequence(system)
 
 # Define FOV and resolution
 fov = 1000e-3
-Nread = 128 # enlarging Nread makes also the gradients take longer --> thus delta k and FoV is fixed but resolution gets better
-Nphase = 128
+Nread = 64 # enlarging Nread makes also the gradients take longer --> thus delta k and FoV is fixed but resolution gets better
+Nphase = 64
 slice_thickness = 8e-3  # slice
 
 # Define rf events
@@ -80,8 +80,6 @@ g_read_spoil = pp.make_trapezoid(channel='x', area=g_read.area / 2, duration=1e-
 # --> then all RARE sequences for all kspace-lines have the same signal
 # ==> use 10s delay for beginning!!!
 
-# TODO: adapt the FFT
-
 for j in range(-Nphase // 2, Nphase // 2):
     # adapt phase gradients magnitude
     if j == 0:
@@ -127,10 +125,10 @@ seq.write('../out/' + experiment_id + '.seq')
 # %% S4: SETUP SPIN SYSTEM/object on which we can run the MR sequence external.seq from above
 sz = [64, 64]
 
-if 0:
+if 1:
     # (i) load a phantom object from file
     # obj_p = mr0.VoxelGridPhantom.load_mat('../data/phantom2D.mat')
-    obj_p = mr0.VoxelGridPhantom.load_mat('../data/numerical_brain_cropped.mat')
+    obj_p = mr0.VoxelGridPhantom.load_mat('../../data/numerical_brain_cropped.mat')
     obj_p = obj_p.interpolate(sz[0], sz[1], 1)
 
 # Manipulate loaded data
@@ -171,27 +169,26 @@ plt.close(11);plt.close(12)
 sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
 
 
-# %% S6: MR IMAGE RECON of signal ::: #####################################
+# %% S6: MR IMAGE RECON of signal ::: ##############
 fig = plt.figure()  # fig.clf()
 plt.subplot(411)
 plt.title('ADC signal')
+plt.plot(torch.real(signal), label='real')
+plt.plot(torch.imag(signal), label='imag')
+
+# this adds ticks at the correct position szread
+major_ticks = np.arange(0, Nphase * Nread * num_echos, Nread)
+ax = plt.gca()
+ax.set_xticks(major_ticks)
+ax.grid()
+
 spectrum = torch.reshape((signal), (Nread, num_echos, Nphase)).clone()
 
 spaces = []
 
 for ii in range(num_echos):
-    kspace_signal = spectrum[:, ii, :]
-    kspace = kspace_signal
-
-    # plt.plot(torch.real(signal), label='real')
-    # plt.plot(torch.imag(signal), label='imag')
-    
-    
-    # # this adds ticks at the correct position szread
-    # major_ticks = np.arange(0, Nphase * Nread, Nread)
-    # ax = plt.gca()
-    # ax.set_xticks(major_ticks)
-    # ax.grid()
+    kspace_signal = spectrum[:, ii, :].t()
+    kspace = kspace_signal.clone() # deep copy
     
     space = torch.zeros_like(spectrum)
     
@@ -204,10 +201,9 @@ for ii in range(num_echos):
     space = torch.fft.fftshift(space, 0)
     space = torch.fft.fftshift(space, 1)
     
-    
     spaces.append(space.numpy())
     
-    if ii == 9:    
+    if ii == 0:
         plt.subplot(345)
         plt.title('k-space')
         mr0.util.imshow(np.abs(kspace.numpy()))
@@ -224,24 +220,102 @@ for ii in range(num_echos):
         mr0.util.imshow(np.angle(space.numpy()), vmin=-np.pi, vmax=np.pi)
         plt.colorbar()
         
-        # # % compare with original phantom obj_p.PD
-        # plt.subplot(348)
-        # plt.title('phantom PD')
-        # mr0.util.imshow(obj_p.recover().PD.squeeze())
-        # plt.subplot(3, 4, 12)
-        # plt.title('phantom B0')
-        # mr0.util.imshow(obj_p.recover().B1.squeeze())
     
-spaces = np.array(spaces)
+spaces = np.array(spaces) # has real and imaginary parts
 
-# %% S7: T2 fitting
+# %% S7: apply image mask
 
-expo = np.log(np.abs(spaces[:, 30, 30])) # this is in the box where we have high signal
-times = np.arange(num_echos) * (del_90_180 * 2)
-plt.plot(times, expo, "o")
-plt.show()
+threshold = 200 # 450 # threshold experimentally defined having a look at the first spin echo signal
 
-# get slope
-slope = (expo[-1] - expo[0]) / times[-1]
-T2 = -slope
-print(T2)
+for ii in range(num_echos):
+    space = np.abs(spaces[ii]) # absolute image space
+    
+    # iterate over the image and set signal down to yero if it is below a certain threshold
+    for i in range(space.shape[0]):
+        for j in range(space.shape[1]):
+            if space[i,j] < threshold:
+                space[i,j] = 1
+                
+    spaces[ii] = space        
+
+# %% S8: plotting
+
+# plot all reconstructed images
+plt.figure()
+for i in range(num_echos):
+    plt.subplot(num_echos//5, 5, i+1)
+    mr0.util.imshow(np.abs(spaces[i]))
+    plt.colorbar()
+
+# %% S9: T2 fitting
+
+# def my_exp(x, a, b):
+#     return a * np.exp(b * x)
+
+# create T2 map
+T2_map = np.zeros(shape=(Nread, Nphase))
+
+time = (np.arange(num_echos) + 1) * ((del_90_180 + pp.calc_duration(rf0)) * 2)
+
+# iterate over al pixels
+for i in range(T2_map.shape[0]):
+    for j in range(T2_map.shape[1]):
+        
+        signal = np.log(np.abs(spaces[:, i, j]))
+        
+        # perform a linear fit
+        from scipy.stats import linregress
+        slope, intercept, r_value, p_value, std_err = linregress(time, signal)
+        
+        # perform an exponential fit
+        # from scipy.optimize import curve_fit
+        # popt, pcov = curve_fit(my_exp, time, signal)
+        
+        if i == 16 and j == 16: # this is in the box where we have high signal
+            y_pred = slope * time + intercept
+            
+            plt.figure()
+            plt.scatter(time, signal, color="blue", label="data points")
+            plt.plot(time, y_pred, color="orange", label="fitted line")
+            plt.title("T2 relaxation within a single pixel")
+            plt.xlabel("time")
+            plt.ylabel("signal")
+            plt.legend()
+            plt.show()
+            
+        # the slope is the negative relaxation rate R2
+        if slope == 0:
+            T2_measured = 0
+        else:
+            T2_measured = -1 / slope
+            
+        T2_map[i,j] = T2_measured
+        
+       
+plt.figure()
+mr0.util.imshow(T2_map, vmin=0, vmax=obj_p.T2[:].numpy().max())
+plt.colorbar()
+plt.title("T2 map")
+
+
+# %% S10: compare T2 maps
+plt.figure()
+plt.subplot(1, 2, 1)
+mr0.util.imshow(obj_p.recover().T2.squeeze())
+plt.colorbar()
+plt.title("True T2 map")
+
+plt.subplot(1, 2, 2)
+mr0.util.imshow(T2_map, vmin=0, vmax=obj_p.T2[:].numpy().max())
+plt.colorbar()
+plt.title("Measured T2 map")
+
+# scatterplot
+# remove outliers first
+for i in range(T2_map.shape[0]):
+    for j in range(T2_map.shape[1]):
+        if T2_map[i,j] > (obj_p.T2[:].numpy().max() + 0.2) or (T2_map[i,j] < obj_p.T2[:].numpy().min() - 0.2):
+            T2_map[i,j] = obj_p.recover().T2.squeeze()[i,j] # outliers are mapped onto regression line
+            
+plt.figure()
+plt.scatter(obj_p.recover().T2.squeeze(), T2_map)
