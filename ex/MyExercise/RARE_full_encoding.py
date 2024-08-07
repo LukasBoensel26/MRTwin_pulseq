@@ -5,12 +5,14 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-# makes the ex folder your working directory
+from scipy.optimize import curve_fit
+
+# makes the current folder your working directory
 import os 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
-experiment_id = 'RARE'
+experiment_id = 'RARE_T2_mapping'
 
 
 # %% S1. SETUP sys
@@ -32,7 +34,19 @@ Nread = 64 # enlarging Nread makes also the gradients take longer --> thus delta
 Nphase = 64
 slice_thickness = 8e-3  # slice
 
+########################################################################################################
+
+# define timing parameters of the sequence
+del_90_180 = 20e-3 # this defines the echo time --> first echo at 2*(del_90_180+pp.calc_duration(rf0))
+TR = 10
+
+# define further sequence parameters
+num_echos = 40
+
+########################################################################################################
+
 # Define rf events
+# excitation pulse
 rf0, _, _ = pp.make_sinc_pulse(
     phase_offset=90 * np.pi / 180, # to make the spin echo positive and real
     flip_angle=90 * np.pi / 180, duration=1e-3,
@@ -47,11 +61,6 @@ rf1, _, _ = pp.make_sinc_pulse(
     system=system, return_gz=True
 )
 
-# define timing parameters of the sequence
-del_90_180 = 5e-3
-
-# define further sequence parameters
-num_echos = 10
 
 # Define gradients and ADC events
 g_phase = pp.make_trapezoid(channel='y', area=-Nphase/2, duration=1e-3, system=system)
@@ -60,6 +69,10 @@ g_phase_revert = pp.make_trapezoid(channel='y', area=-g_phase.area, duration=1e-
 # del_90_180 + pp.calc_duration(rf0) = pp.calc_rf_center(rf0)[0] + rf0.delay + g_phase.flat_time + g_phase.rise_time + g_phase.fall_time + 0.5 * adc_duration
 # --> solve for adc_duration
 adc_duration = 2 * (del_90_180 + pp.calc_duration(rf0) - pp.calc_rf_center(rf0)[0] - rf0.delay - g_phase.flat_time - g_phase.rise_time - g_phase.fall_time)
+add_delay = 0
+if adc_duration > 5e-3:
+    add_delay = (adc_duration - 5e-3) / 2
+    adc_duration = 5e-3
 
 g_read = pp.make_trapezoid(channel='x', flat_area=Nread, flat_time=adc_duration, system=system)
 g_read_pre = pp.make_trapezoid(channel='x', area=g_read.area, duration=1e-3, system=system) 
@@ -69,19 +82,14 @@ adc = pp.make_adc(num_samples=Nread, duration=adc_duration, phase_offset=0 * np.
 
 # add spoiler gradients
 g_read_spoil = pp.make_trapezoid(channel='x', area=g_read.area / 2, duration=1e-3, system=system)
+# duration needs to be the same as the duration of phase gradients
 
 # ======
 # CONSTRUCT SEQUENCE
 # ======
 
-# TODO: better idea than killing magnetization with time --> maybe spoil it away in the end to get rid of transversal magnetization, not soo important
-# --> also we need to wait for that time to regain longitudinal magnetization
-# alternative: use a dummy 90 degree RARE sequence without signal acquisition and then only wait for 1s to regain longitudinal magnetization
-# --> then all RARE sequences for all kspace-lines have the same signal
-# ==> use 10s delay for beginning!!!
-
 for j in range(-Nphase // 2, Nphase // 2):
-    # adapt phase gradients magnitude
+    # adapt phase gradients magnitude/area
     if j == 0:
         g_phase = pp.make_trapezoid(channel='y', area=j+1e-12, duration=1e-3, system=system)
         g_phase_revert = pp.make_trapezoid(channel='y', area=-g_phase.area, duration=1e-3, system=system)
@@ -96,11 +104,13 @@ for j in range(-Nphase // 2, Nphase // 2):
     for i in range(num_echos):
         seq.add_block(rf1)
         seq.add_block(g_phase, g_read_spoil)
+        seq.add_block(pp.make_delay(add_delay))
         seq.add_block(adc, g_read)
+        seq.add_block(pp.make_delay(add_delay))
         seq.add_block(g_phase_revert, g_read_spoil)
         
-    # let some time pass by to kill residual magnetization
-    seq.add_block(pp.make_delay(10))
+    # let some time pass by to kill residual magnetization and gain new longitudinal magnetization
+    seq.add_block(pp.make_delay(TR))
 
 
 # %% S3. CHECK, PLOT and WRITE the sequence  as .seq
@@ -131,7 +141,7 @@ if 1:
     obj_p = mr0.VoxelGridPhantom.load_mat('../../data/numerical_brain_cropped.mat')
     obj_p = obj_p.interpolate(sz[0], sz[1], 1)
 
-# Manipulate loaded data
+    # Manipulate loaded data
     obj_p.B0 *= 1    # alter the B0 inhomogeneity
     obj_p.D *= 0 
 else:
@@ -161,12 +171,14 @@ seq0 = mr0.Sequence.import_file("../out/external.seq")
 
 seq0.plot_kspace_trajectory()
 # Simulate the sequence
-graph = mr0.compute_graph(seq0, obj_p, 200, 1e-3)
-signal = mr0.execute_graph(graph, seq0, obj_p)
+graph = mr0.compute_graph(seq0, obj_p, 2000, 1e-6)
+signal = mr0.execute_graph(graph, seq0, obj_p, min_emitted_signal=1e-10, min_latent_signal=1e-10)
 
 # PLOT sequence with signal in the ADC subplot
 plt.close(11);plt.close(12)
 sp_adc, t_adc = mr0.util.pulseq_plot(seq, clear=False, signal=signal.numpy())
+
+signal += 2 * np.random.randn(signal.shape[0], 2).view(np.complex128)
 
 
 # %% S6: MR IMAGE RECON of signal ::: ##############
@@ -225,18 +237,16 @@ spaces = np.array(spaces) # has real and imaginary parts
 
 # %% S7: apply image mask
 
-threshold = 200 # 450 # threshold experimentally defined having a look at the first spin echo signal
+threshold = 200 # 450 # threshold experimentally determined having a look at the first spin echo signal
 
-for ii in range(num_echos):
-    space = np.abs(spaces[ii]) # absolute image space
-    
-    # iterate over the image and set signal down to yero if it is below a certain threshold
-    for i in range(space.shape[0]):
-        for j in range(space.shape[1]):
-            if space[i,j] < threshold:
-                space[i,j] = 1
-                
-    spaces[ii] = space        
+space = np.abs(spaces[0]) # absolute image space of the first echo
+
+# iterate over first echo image and set signal down to 1 if it is below a certain threshold --> for all echos!
+for i in range(space.shape[0]):
+    for j in range(space.shape[1]):
+        if space[i,j] < threshold:
+            for k in range(num_echos):
+                spaces[k,i,j] = 0
 
 # %% S8: plotting
 
@@ -249,49 +259,56 @@ for i in range(num_echos):
 
 # %% S9: T2 fitting
 
-# def my_exp(x, a, b):
-#     return a * np.exp(b * x)
+def plot_T2_relaxation(time, signal, xseq, y_pred, tissue):
+    if tissue == "CSF":
+        col = "blue"
+    if tissue == "GM":
+        col = "gray"
+    if tissue == "WM":
+        col = "orange"
+        
+    plt.scatter(time, signal, color=col, label=f"{tissue}")
+    plt.plot(xseq, y_pred, color=col)
+    plt.title("T2 relaxation within a single pixel")
+    plt.xlabel("time")
+    plt.ylabel("signal")
+    plt.legend()
+    plt.show()
+
+def my_exp(x, a, b):
+    return a * np.exp(b * x)
 
 # create T2 map
 T2_map = np.zeros(shape=(Nread, Nphase))
 
 time = (np.arange(num_echos) + 1) * ((del_90_180 + pp.calc_duration(rf0)) * 2)
+plt.figure()
 
-# iterate over al pixels
+# iterate over all pixels and fit T2
 for i in range(T2_map.shape[0]):
     for j in range(T2_map.shape[1]):
         
-        signal = np.log(np.abs(spaces[:, i, j]))
-        
-        # perform a linear fit
-        from scipy.stats import linregress
-        slope, intercept, r_value, p_value, std_err = linregress(time, signal)
+        signal = np.abs(spaces[:, i, j])
         
         # perform an exponential fit
-        # from scipy.optimize import curve_fit
-        # popt, pcov = curve_fit(my_exp, time, signal)
+        popt, pcov = curve_fit(my_exp, time, signal)
         
-        if i == 16 and j == 16: # this is in the box where we have high signal
-            y_pred = slope * time + intercept
+        # compare T2 relaxation between CSF, WM, GM
+        xseq = np.linspace(0, num_echos * (del_90_180 + pp.calc_duration(rf0)) * 2, num=100)
+        y_pred = my_exp(xseq, popt[0], popt[1])
+        
+        if i == 31 and j == 40: # CSF
+            plot_T2_relaxation(time, signal, xseq, y_pred, "CSF")
+        if i == 40 and j == 36: # WM
+            plot_T2_relaxation(time, signal, xseq, y_pred, "WM")
+        if i == 18 and j == 51: # GM
+            plot_T2_relaxation(time, signal, xseq, y_pred, "GM")
             
-            plt.figure()
-            plt.scatter(time, signal, color="blue", label="data points")
-            plt.plot(time, y_pred, color="orange", label="fitted line")
-            plt.title("T2 relaxation within a single pixel")
-            plt.xlabel("time")
-            plt.ylabel("signal")
-            plt.legend()
-            plt.show()
-            
-        # the slope is the negative relaxation rate R2
-        if slope == 0:
-            T2_measured = 0
-        else:
-            T2_measured = -1 / slope
+        T2_measured = -1 / popt[1]
             
         T2_map[i,j] = T2_measured
         
-       
+
 plt.figure()
 mr0.util.imshow(T2_map, vmin=0, vmax=obj_p.T2[:].numpy().max())
 plt.colorbar()
@@ -314,8 +331,14 @@ plt.title("Measured T2 map")
 # remove outliers first
 for i in range(T2_map.shape[0]):
     for j in range(T2_map.shape[1]):
-        if T2_map[i,j] > (obj_p.T2[:].numpy().max() + 0.2) or (T2_map[i,j] < obj_p.T2[:].numpy().min() - 0.2):
+        if T2_map[i,j] > (obj_p.T2[:].numpy().max() + 1) or (T2_map[i,j] < obj_p.T2[:].numpy().min() - 1):
             T2_map[i,j] = obj_p.recover().T2.squeeze()[i,j] # outliers are mapped onto regression line
             
 plt.figure()
+plt.xlabel("T2 true")
+plt.ylabel("T2 measured")
 plt.scatter(obj_p.recover().T2.squeeze(), T2_map)
+
+b, a = np.polyfit(obj_p.recover().T2.squeeze().numpy().flatten(), T2_map.flatten(), deg=1)
+xseq = np.linspace(obj_p.recover().T2.squeeze().min(), obj_p.recover().T2.squeeze().max(), num=100)
+plt.plot(xseq, xseq, color="k", lw=2.5)
